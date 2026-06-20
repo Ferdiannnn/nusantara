@@ -267,7 +267,7 @@
                 document.getElementById('player-profile').innerHTML = `
                     <div class="player-avatar">${player.username.charAt(0).toUpperCase()}</div>
                     <div class="player-stats">
-                        <div class="name">Lv.1 ${player.username}</div>
+                        <div class="name">Lv.1 ${player.username} ${player.role === 'KING' ? '(👑 Raja)' : '(Prajurit)'}</div>
                         <div class="kingdom" style="color: ${player.kingdom.color_hex}">Kerajaan ${player.kingdom.name}</div>
                     </div>
                 `;
@@ -378,15 +378,72 @@
                     }
                 }
 
-                let btnLabel = "Serang Wilayah!";
+                // Check for ongoing battle initiated by our kingdom
+                let ongoingBattle = null;
+                if (currentTData && currentTData.battles && currentTData.battles.length > 0) {
+                    ongoingBattle = currentTData.battles[0];
+                }
+                const isOurBattle = ongoingBattle && ongoingBattle.attacker_kingdom_id === player.kingdom_id;
+                const isBeingAttacked = ongoingBattle && ongoingBattle.defender_kingdom_id === player.kingdom_id;
+
+                let btnLabel = "";
                 let isDisabled = false;
+                let btnAction = null;
+                let progressHtml = "";
 
                 if (isOwnedByUs) {
-                    btnLabel = "Sudah Dikuasai";
-                    isDisabled = true;
+                    if (isBeingAttacked) {
+                        const maxHp = 100;
+                        const currentHp = currentTData.troops_count || 0;
+                        const progressPercent = Math.max(0, Math.min(100, ((maxHp - currentHp) / maxHp) * 100));
+
+                        progressHtml = `
+                            <div style="margin-top: 15px; margin-bottom: 15px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 5px;">
+                                    <span>Kondisi Pertahanan</span>
+                                    <span id="t-progress-text">${Math.round(progressPercent)}%</span>
+                                </div>
+                                <div style="width: 100%; height: 10px; background: #333; border-radius: 5px; overflow: hidden;">
+                                    <div id="t-progress-bar" style="width: ${progressPercent}%; height: 100%; background: #3b82f6; transition: width 0.2s ease;"></div>
+                                </div>
+                            </div>
+                        `;
+                        btnLabel = "Pertahankan Wilayah!";
+                        btnAction = "defend_territory";
+                    } else {
+                        btnLabel = "Aman / Sudah Dikuasai";
+                        isDisabled = true;
+                    }
+                } else if (isOurBattle) {
+                    // Ongoing battle!
+                    const maxHp = 100;
+                    const currentHp = currentTData.troops_count || 0;
+                    const progressPercent = Math.max(0, Math.min(100, ((maxHp - currentHp) / maxHp) * 100));
+
+                    progressHtml = `
+                        <div style="margin-top: 15px; margin-bottom: 15px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 5px;">
+                                <span>Progress Penaklukan</span>
+                                <span id="t-progress-text">${Math.round(progressPercent)}%</span>
+                            </div>
+                            <div style="width: 100%; height: 10px; background: #333; border-radius: 5px; overflow: hidden;">
+                                <div id="t-progress-bar" style="width: ${progressPercent}%; height: 100%; background: #ef4444; transition: width 0.2s ease;"></div>
+                            </div>
+                        </div>
+                    `;
+                    btnLabel = "Bantu Penyerangan!";
+                    btnAction = "help_attack";
                 } else if (!isFirstAttack && !isAdjacent) {
                     btnLabel = "Terlalu Jauh!";
                     isDisabled = true;
+                } else {
+                    if (player.role === 'KING') {
+                        btnLabel = "Deklarasi Perang!";
+                        btnAction = "declare_war";
+                    } else {
+                        btnLabel = "Menunggu Deklarasi Raja";
+                        isDisabled = true;
+                    }
                 }
                 
                 document.getElementById('sidebar-content').innerHTML = `
@@ -395,8 +452,9 @@
                         <div class="t-owner">${parent}${province}</div>
                         <div class="t-stats">
                             <div>👑 Kepemilikan: <strong style="color: ${(currentTData && currentTData.kingdom ? currentTData.kingdom.color_hex : null) || '#fff'}">${currentOwner}</strong></div>
-                            <div>⚔️ Pasukan: <strong>${(currentTData ? currentTData.troops_count : null) || 0}</strong></div>
+                            <div>❤️ HP: <strong id="t-hp">${(currentTData ? currentTData.troops_count : 100) || 100}</strong> / 100</div>
                         </div>
+                        ${progressHtml}
                         <button id="btn-attack" class="btn-attack" ${isDisabled ? 'disabled' : ''}>
                             ${btnLabel}
                         </button>
@@ -406,32 +464,100 @@
                     if (!isDisabled) {
                         document.getElementById('btn-attack').addEventListener('click', () => {
                             const btn = document.getElementById('btn-attack');
-                            btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Mengirim Pasukan...';
+                            const originalLabel = btn.innerHTML;
+                            btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Memproses...';
                             btn.disabled = true;
 
-                            fetch('/api/game/attack', {
+                            const endpoint = btnAction === 'declare_war' ? '/api/game/declare_war' : 
+                                             (btnAction === 'help_attack' ? '/api/game/help_attack' : '/api/game/defend_territory');
+
+                            fetch(endpoint, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     territory_code: code,
-                                    attacker_kingdom_id: parseInt(selectedKingdomId)
+                                    attacker_kingdom_id: parseInt(selectedKingdomId),
+                                    defender_kingdom_id: parseInt(selectedKingdomId),
+                                    player_id: player.id
                                 })
                             })
                             .then(res => res.json())
                             .then(res => {
                                 if(res.status === 'success') {
-                                    // Berhasil direbut, update peta & sidebar
-                                    btn.innerHTML = 'Berhasil Dikuasai!';
-                                    btn.style.background = '#22c55e';
-                                    setTimeout(() => fetchTerritories(), 1000);
+                                    if (btnAction === 'declare_war') {
+                                        btn.innerHTML = 'Perang Dideklarasikan!';
+                                        btn.style.background = '#eab308';
+                                        
+                                        // Update local data to trigger ongoing battle state immediately
+                                        if (!territoriesDb[code]) territoriesDb[code] = {};
+                                        territoriesDb[code].battles = [{ status: 'ONGOING', attacker_kingdom_id: player.kingdom_id }];
+                                        territoriesDb[code].troops_count = 100;
+
+                                        setTimeout(() => {
+                                            fetchTerritories();
+                                            e.target.fire('click');
+                                        }, 1000);
+                                    } else if (btnAction === 'defend_territory') {
+                                        if (res.defended) {
+                                            btn.innerHTML = 'Berhasil Dipertahankan!';
+                                            btn.style.background = '#22c55e';
+                                            setTimeout(() => fetchTerritories(), 1000);
+                                        } else {
+                                            // Update visual immediately
+                                            btn.innerHTML = 'Pertahankan Lagi!';
+                                            btn.disabled = false;
+                                            
+                                            const hpEl = document.getElementById('t-hp');
+                                            if(hpEl) hpEl.innerText = res.hp;
+
+                                            const progressPercent = Math.max(0, Math.min(100, ((100 - res.hp) / 100) * 100));
+                                            const bar = document.getElementById('t-progress-bar');
+                                            if (bar) bar.style.width = progressPercent + '%';
+                                            const percentText = document.getElementById('t-progress-text');
+                                            if (percentText) percentText.innerText = Math.round(progressPercent) + '%';
+                                            
+                                            if(territoriesDb[code]) {
+                                                territoriesDb[code].troops_count = res.hp;
+                                            }
+                                        }
+                                    } else {
+                                        // Help Attack
+                                        if (res.conquered) {
+                                            btn.innerHTML = 'Berhasil Dikuasai!';
+                                            btn.style.background = '#22c55e';
+                                            setTimeout(() => fetchTerritories(), 1000);
+                                        } else {
+                                            // Update visual immediately
+                                            btn.innerHTML = 'Serang Lagi!';
+                                            btn.disabled = false;
+                                            
+                                            // Update HP text
+                                            const hpEl = document.getElementById('t-hp');
+                                            if(hpEl) hpEl.innerText = res.hp;
+
+                                            // Update progress bar
+                                            const progressPercent = Math.max(0, Math.min(100, ((100 - res.hp) / 100) * 100));
+                                            const bar = document.getElementById('t-progress-bar');
+                                            if (bar) bar.style.width = progressPercent + '%';
+                                            const percentText = document.getElementById('t-progress-text');
+                                            if (percentText) percentText.innerText = Math.round(progressPercent) + '%';
+                                            
+                                            // Update local data so tooltip and next clicks are correct
+                                            if(territoriesDb[code]) {
+                                                territoriesDb[code].troops_count = res.hp;
+                                            }
+                                        }
+                                    }
                                 } else {
                                     alert(res.message);
-                                    btn.innerHTML = 'Serangan Gagal';
+                                    btn.innerHTML = originalLabel;
+                                    btn.disabled = false;
                                 }
                             })
                             .catch(err => {
                                 console.error(err);
                                 btn.innerHTML = 'Error';
+                                btn.disabled = false;
                             });
                         });
                     }
