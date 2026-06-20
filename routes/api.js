@@ -81,7 +81,8 @@ router.get('/game/territories', async (req, res) => {
                 battles: {
                     where: { status: 'ONGOING' },
                     orderBy: { started_at: 'desc' },
-                    take: 1
+                    take: 1,
+                    include: { attacker_kingdom: true }
                 }
             }
         });
