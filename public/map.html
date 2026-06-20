@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta Indonesia - GADM Level 3</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background-color: #0d0d0d;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        
+        .layout {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #map {
+            flex-grow: 1;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 380px;
+            background-color: #121212;
+            border-left: 1px solid #2a2a2a;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 15px;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .player-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #3b82f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .player-stats {
+            font-size: 0.85rem;
+        }
+        .player-stats .name { font-weight: bold; font-size: 1rem; color: #fff; }
+        .player-stats .kingdom { color: #facc15; font-size: 0.8rem; }
+        
+        .logout-btn {
+            background: transparent;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .logout-btn:hover { background: #ef4444; color: white; }
+
+        .sidebar-banner {
+            width: 100%;
+            height: 150px;
+            background-image: url('/images/battle_banner.png');
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+        .banner-overlay {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: linear-gradient(to top, #121212, transparent);
+            padding: 15px;
+        }
+        .banner-title {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-shadow: 1px 1px 3px black;
+        }
+
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid #2a2a2a;
+            background: #161616;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px 0;
+            font-size: 0.9rem;
+            color: #888;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .tab.active {
+            color: #ef4444;
+            border-bottom: 2px solid #ef4444;
+            background: #1a1a1a;
+        }
+
+        .sidebar-content {
+            padding: 20px;
+            flex-grow: 1;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            margin-top: 40px;
+            font-size: 0.95rem;
+        }
+
+        .territory-card {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .t-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; color: #fff; }
+        .t-owner { font-size: 0.85rem; color: #aaa; margin-bottom: 15px; }
+        .t-stats {
+            display: flex;
+            justify-content: space-between;
+            background: #121212;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+        }
+
+        .btn-attack {
+            width: 100%;
+            padding: 12px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn-attack:hover { background: #dc2626; }
+        .btn-attack:disabled { background: #555; cursor: not-allowed; color: #888; }
+
+        #loader {
+            position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 2000; background: rgba(0,0,0,0.8); padding: 20px 40px;
+            border-radius: 12px; display: flex; flex-direction: column;
+            align-items: center; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1);
+            border-left-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        
+        /* Custom map tooltips */
+        .leaflet-tooltip { background: rgba(18,18,18,0.9); border: 1px solid rgba(255,255,255,0.2); color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-family: 'Inter', sans-serif; border-radius: 6px; }
+        .leaflet-tooltip-top:before { border-top-color: rgba(18,18,18,0.9); }
+    </style>
+</head>
+<body>
+    <div id="loader">
+        <div class="spinner"></div>
+        <span>Memuat data peta (~13MB)... Mohon tunggu.</span>
+    </div>
+
+    <div class="layout">
+        <div id="map"></div>
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="player-profile" id="player-profile">
+                    <!-- Data Profil Injected by JS -->
+                </div>
+                <button class="logout-btn" onclick="logout()">Keluar</button>
+            </div>
+            
+            <div class="sidebar-banner">
+                <div class="banner-overlay">
+                    <h2 class="banner-title">Status Wilayah</h2>
+                </div>
+            </div>
+
+            <div class="sidebar-content" id="sidebar-content">
+                <div class="empty-state">
+                    Pilih wilayah di peta untuk melihat detail atau memulai penyerangan.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        // Batas wilayah Indonesia (BBox kasar)
+        const indonesiaBounds = [
+            [-11.0, 95.0], // Barat Daya
+            [6.0, 141.0]   // Timur Laut
+        ];
+
+        const map = L.map('map', {
+            zoomControl: false,
+            preferCanvas: true, // Meningkatkan performa drastis untuk ribuan polygon!
+            maxBounds: indonesiaBounds,
+            maxBoundsViscosity: 1.0, // Mencegah pengguna keluar dari batas
+            minZoom: 4 // Jangan biarkan zoom terlalu jauh
+        }).setView([-2.5489, 118.0149], 5);
+
+        L.control.zoom({
+            position: 'bottomright'
+        }).addTo(map);
+
+        // Proteksi Login
+        const playerDataStr = localStorage.getItem('player');
+        let player = null;
+        let selectedKingdomId = null;
+
+        if (!playerDataStr) {
+            window.location.href = '/register.html';
+        } else {
+            player = JSON.parse(playerDataStr);
+            if (!player || !player.kingdom) {
+                localStorage.removeItem('player');
+                window.location.href = '/login.html';
+            } else {
+                selectedKingdomId = player.kingdom_id;
+                document.getElementById('player-profile').innerHTML = `
+                    <div class="player-avatar">${player.username.charAt(0).toUpperCase()}</div>
+                    <div class="player-stats">
+                        <div class="name">Lv.1 ${player.username}</div>
+                        <div class="kingdom" style="color: ${player.kingdom.color_hex}">Kerajaan ${player.kingdom.name}</div>
+                    </div>
+                `;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('player');
+            window.location.href = '/login.html';
+        }
+
+        // Fix map size after flex layout renders
+        setTimeout(() => { map.invalidateSize(); }, 500);
+
+        // State Game
+        let territoriesDb = {}; // Menyimpan data kepemilikan daerah
+
+        // Styling default untuk geojson polygons
+        function getStyle(feature) {
+            const code = feature.properties.GID_3 || feature.properties.GID_2 || feature.properties.GID_1;
+            const tData = territoriesDb[code];
+            
+            if (tData && tData.kingdom) {
+                return {
+                    color: tData.kingdom.color_hex,
+                    weight: 1.5,
+                    opacity: 1,
+                    fillColor: tData.kingdom.color_hex,
+                    fillOpacity: 0.6
+                };
+            }
+
+            // Default (netral)
+            return {
+                color: "#3b82f6",
+                weight: 0.8,
+                opacity: 0.8,
+                fillColor: "#1e3a8a",
+                fillOpacity: 0.3
+            };
+        }
+
+        const highlightStyle = {
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.8
+        };
+
+        // Fungsi saat fitur (polygon) berinteraksi
+        function onEachFeature(feature, layer) {
+            const name = feature.properties.NAME_3 || feature.properties.NAME_2 || feature.properties.NAME_1 || "Tidak diketahui";
+            const parent = feature.properties.NAME_2 ? `${feature.properties.NAME_2}, ` : "";
+            const province = feature.properties.NAME_1 || "";
+            const code = feature.properties.GID_3 || feature.properties.GID_2 || feature.properties.GID_1;
+            
+            // Set initial tooltip (will be updated on hover)
+            layer.bindTooltip("Loading...", { sticky: true });
+
+            // Perbarui tooltip secara dinamis saat disentuh (mouseover)
+            layer.on('mouseover', function(e) {
+                const layer = e.target;
+                layer.setStyle({
+                    ...getStyle(feature),
+                    ...highlightStyle
+                });
+                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                    layer.bringToFront();
+                }
+
+                const tData = territoriesDb[code];
+                const owner = tData && tData.kingdom ? tData.kingdom.name : "Netral";
+                const tooltipContent = `
+                    <div style="padding: 5px;">
+                        <strong style="font-size: 14px; display: block; margin-bottom: 2px;">${name}</strong>
+                        <span style="font-size: 11px; color: #cbd5e1;">${parent}${province}</span><br/>
+                        <span style="font-size: 12px; color: #facc15; font-weight: bold; margin-top: 5px; display: inline-block;">Kerajaan: ${owner}</span>
+                    </div>
+                `;
+                layer.setTooltipContent(tooltipContent);
+            });
+
+            layer.on('mouseout', function(e) {
+                const layer = e.target;
+                layer.setStyle(getStyle(feature));
+            });
+
+            layer.on('click', function(e) {
+                map.fitBounds(e.target.getBounds());
+                
+                // Cek kepemilikan terbaru dari territoriesDb!
+                const currentTData = territoriesDb[code];
+                const currentOwner = currentTData && currentTData.kingdom ? currentTData.kingdom.name : "Netral";
+                const isOwnedByUs = currentTData && currentTData.kingdom && currentTData.kingdom.id === player.kingdom_id;
+
+                // Hitung apakah kita punya wilayah
+                const myTerritories = Object.values(territoriesDb).filter(t => t.kingdom_id === player.kingdom_id);
+                const isFirstAttack = myTerritories.length === 0;
+
+                // Cek apakah wilayah ini bertetangga dengan salah satu wilayah kita
+                let isAdjacent = false;
+                if (!isFirstAttack) {
+                    for (let t of myTerritories) {
+                        const neighbors = adjacencyDb[t.code] || [];
+                        if (neighbors.includes(code)) {
+                            isAdjacent = true;
+                            break;
+                        }
+                    }
+                }
+
+                let btnLabel = "Serang Wilayah!";
+                let isDisabled = false;
+
+                if (isOwnedByUs) {
+                    btnLabel = "Sudah Dikuasai";
+                    isDisabled = true;
+                } else if (!isFirstAttack && !isAdjacent) {
+                    btnLabel = "Terlalu Jauh!";
+                    isDisabled = true;
+                }
+                
+                document.getElementById('sidebar-content').innerHTML = `
+                    <div class="territory-card">
+                        <div class="t-title">${name}</div>
+                        <div class="t-owner">${parent}${province}</div>
+                        <div class="t-stats">
+                            <div>👑 Kepemilikan: <strong style="color: ${(currentTData && currentTData.kingdom ? currentTData.kingdom.color_hex : null) || '#fff'}">${currentOwner}</strong></div>
+                            <div>⚔️ Pasukan: <strong>${(currentTData ? currentTData.troops_count : null) || 0}</strong></div>
+                        </div>
+                        <button id="btn-attack" class="btn-attack" ${isDisabled ? 'disabled' : ''}>
+                            ${btnLabel}
+                        </button>
+                    </div>
+                `;
+
+                    if (!isDisabled) {
+                        document.getElementById('btn-attack').addEventListener('click', () => {
+                            const btn = document.getElementById('btn-attack');
+                            btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Mengirim Pasukan...';
+                            btn.disabled = true;
+
+                            fetch('/api/game/attack', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    territory_code: code,
+                                    attacker_kingdom_id: parseInt(selectedKingdomId)
+                                })
+                            })
+                            .then(res => res.json())
+                            .then(res => {
+                                if(res.status === 'success') {
+                                    // Berhasil direbut, update peta & sidebar
+                                    btn.innerHTML = 'Berhasil Dikuasai!';
+                                    btn.style.background = '#22c55e';
+                                    setTimeout(() => fetchTerritories(), 1000);
+                                } else {
+                                    alert(res.message);
+                                    btn.innerHTML = 'Serangan Gagal';
+                                }
+                            })
+                            .catch(err => {
+                                console.error(err);
+                                btn.innerHTML = 'Error';
+                            });
+                        });
+                    }
+                });
+        }
+
+        let geojsonLayer;
+        let mapDataJson = null;
+        let adjacencyDb = {};
+
+        // Fetch data geojson
+        function loadMapData() {
+            fetch('/maps/adjacency.json')
+                .then(r => r.json())
+                .then(data => { adjacencyDb = data; })
+                .catch(e => console.error("Adjacency error", e));
+
+            fetch('/maps/gadm41_IDN_1.json')
+                .then(response => {
+                    if (!response.ok) {
+                        return fetch('/maps/gadm41_IDN_1.json').then(r => r.json());
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    mapDataJson = data;
+                    renderMap();
+                })
+                .catch(error => {
+                    console.error("Error loading map data:", error);
+                    const loader = document.getElementById('loader');
+                    loader.innerHTML = `
+                        <div style="color: #ef4444; font-weight: bold; margin-bottom: 10px;">Error Memuat Data</div>
+                        <div style="font-size: 12px; color: #fca5a5;">${error.message}</div>
+                    `;
+                });
+        }
+
+        function renderMap() {
+            if (!mapDataJson) return;
+            
+            if(geojsonLayer) {
+                map.removeLayer(geojsonLayer);
+            }
+
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => document.getElementById('loader').style.display = 'none', 500);
+
+            geojsonLayer = L.geoJSON(mapDataJson, {
+                style: getStyle,
+                onEachFeature: onEachFeature
+            }).addTo(map);
+        }
+
+        function fetchTerritories() {
+            fetch('/api/game/territories?t=' + Date.now())
+                .then(res => res.json())
+                .then(res => {
+                    if(res.status === 'success') {
+                        territoriesDb = {};
+                        res.data.forEach(t => {
+                            territoriesDb[t.code] = t;
+                        });
+                        
+                        // Perbarui gaya (warna) polygon saja, JANGAN buat ulang seluruh peta!
+                        if (geojsonLayer) {
+                            geojsonLayer.eachLayer(function(layer) {
+                                layer.setStyle(getStyle(layer.feature));
+                            });
+                        } else {
+                            renderMap();
+                        }
+                    }
+                });
+        }
+
+        // Load territories and map
+        fetchTerritories();
+        loadMapData();
+    </script>
+</body>
+</html>

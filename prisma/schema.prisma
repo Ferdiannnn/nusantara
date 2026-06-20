@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Kingdom {
+  id         Int         @id @default(autoincrement())
+  name       String      @unique @db.VarChar(50)
+  color_hex  String      @db.VarChar(10)
+  created_at DateTime    @default(now()) @db.Timestamp(0)
+  updated_at DateTime    @updatedAt @db.Timestamp(0)
+  
+  players      Player[]
+  territories  Territory[]
+  
+  // Relations for battles
+  attacks    Battle[]    @relation("AttackerKingdom")
+  defends    Battle[]    @relation("DefenderKingdom")
+}
+
+model Player {
+  id         Int       @id @default(autoincrement())
+  user_id    Int?      // Nullable in case we don't link to a main user table right away
+  username   String    @unique @db.VarChar(50)
+  password   String    @db.VarChar(255)
+  kingdom_id Int
+  score      Int       @default(0)
+  gold       Int       @default(100)
+  created_at DateTime  @default(now()) @db.Timestamp(0)
+  updated_at DateTime  @updatedAt @db.Timestamp(0)
+
+  kingdom    Kingdom   @relation(fields: [kingdom_id], references: [id])
+  movements  PlayerTroopMovement[]
+}
+
+model Territory {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique @db.VarChar(50) // GADM ID, e.g. IDN.1.1_1
+  name         String    @db.VarChar(100)
+  kingdom_id   Int?      // Null if neutral
+  troops_count Int       @default(0)
+  created_at   DateTime  @default(now()) @db.Timestamp(0)
+  updated_at   DateTime  @updatedAt @db.Timestamp(0)
+
+  kingdom      Kingdom?  @relation(fields: [kingdom_id], references: [id])
+  battles      Battle[]
+  movementsTo  PlayerTroopMovement[] @relation("MovementsToTerritory")
+  movementsFrom PlayerTroopMovement[] @relation("MovementsFromTerritory")
+}
+
+model Battle {
+  id                  BigInt    @id @default(autoincrement())
+  territory_id        Int
+  attacker_kingdom_id Int
+  defender_kingdom_id Int?      // Nullable if attacking a neutral territory
+  status              String    @db.VarChar(20) // 'ONGOING', 'ATTACKER_WON', 'DEFENDER_WON'
+  attacker_troops     Int       @default(0)
+  defender_troops     Int       @default(0)
+  started_at          DateTime  @default(now()) @db.Timestamp(0)
+  ended_at            DateTime? @db.Timestamp(0)
+
+  territory           Territory @relation(fields: [territory_id], references: [id])
+  attacker_kingdom    Kingdom   @relation("AttackerKingdom", fields: [attacker_kingdom_id], references: [id])
+  defender_kingdom    Kingdom?  @relation("DefenderKingdom", fields: [defender_kingdom_id], references: [id])
+}
+
+model PlayerTroopMovement {
+  id                BigInt    @id @default(autoincrement())
+  player_id         Int
+  from_territory_id Int
+  to_territory_id   Int
+  troops_count      Int
+  arrival_time      DateTime  @db.Timestamp(0)
+  
+  player            Player    @relation(fields: [player_id], references: [id])
+  from_territory    Territory @relation("MovementsFromTerritory", fields: [from_territory_id], references: [id])
+  to_territory      Territory @relation("MovementsToTerritory", fields: [to_territory_id], references: [id])
+}
