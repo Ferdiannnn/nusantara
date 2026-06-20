@@ -47,5 +47,58 @@ for (let i = 0; i < features.length; i++) {
     }
 }
 
-fs.writeFileSync('maps/adjacency.json', JSON.stringify(adjacency, null, 2));
+// Add custom connections requested by user:
+function addConnection(a, b) {
+    if (!adjacency[a]) adjacency[a] = [];
+    if (!adjacency[b]) adjacency[b] = [];
+    if (!adjacency[a].includes(b)) adjacency[a].push(b);
+    if (!adjacency[b].includes(a)) adjacency[b].push(a);
+}
+
+// Java -> Kalimantan
+const java = ["IDN.4_1", "IDN.7_1", "IDN.9_1", "IDN.10_1", "IDN.33_1", "IDN.11_1"];
+const kalimantan = ["IDN.12_1", "IDN.13_1", "IDN.14_1"];
+for (let j of java) {
+    for (let k of kalimantan) {
+        addConnection(j, k);
+    }
+}
+
+// NTB/NTT -> Sulawesi/Maluku
+const ntb_ntt = ["IDN.20_1", "IDN.21_1"];
+const sulawesi_maluku = ["IDN.26_1", "IDN.28_1", "IDN.19_1"];
+for (let n of ntb_ntt) {
+    for (let sm of sulawesi_maluku) {
+        addConnection(n, sm);
+    }
+}
+
+// Kalimantan <-> Sulawesi
+addConnection("IDN.34_1", "IDN.27_1"); // Kalimantan Timur <-> Sulawesi Tengah
+addConnection("IDN.34_1", "IDN.25_1"); // Kalimantan Timur <-> Sulawesi Barat
+addConnection("IDN.13_1", "IDN.26_1"); // Kalimantan Selatan <-> Sulawesi Selatan
+addConnection("IDN.35_1", "IDN.29_1"); // Kalimantan Utara <-> Sulawesi Utara
+
+// Sulawesi <-> Maluku
+addConnection("IDN.29_1", "IDN.18_1"); // Sulawesi Utara <-> Maluku Utara
+addConnection("IDN.27_1", "IDN.18_1"); // Sulawesi Tengah <-> Maluku Utara
+addConnection("IDN.28_1", "IDN.19_1"); // Sulawesi Tenggara <-> Maluku
+addConnection("IDN.26_1", "IDN.19_1"); // Sulawesi Selatan <-> Maluku
+
+// Maluku <-> Papua
+addConnection("IDN.18_1", "IDN.22_1"); // Maluku Utara <-> Papua Barat
+addConnection("IDN.19_1", "IDN.22_1"); // Maluku <-> Papua Barat
+addConnection("IDN.19_1", "IDN.23_1"); // Maluku <-> Papua
+
+// Sumatra <-> Kalimantan
+addConnection("IDN.3_1", "IDN.12_1");  // BangkaBelitung <-> Kalimantan Barat
+addConnection("IDN.16_1", "IDN.12_1"); // Kepulauan Riau <-> Kalimantan Barat
+
+// Sort keys and values for neatness
+const sortedAdj = {};
+Object.keys(adjacency).sort().forEach(key => {
+    sortedAdj[key] = adjacency[key].sort();
+});
+
+fs.writeFileSync('maps/adjacency.json', JSON.stringify(sortedAdj, null, 2));
 console.log("Done!");

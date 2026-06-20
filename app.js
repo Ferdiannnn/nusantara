@@ -49,3 +49,4 @@ app.use(function(err, req, res, next) {
 });
 
 module.exports = app;
+// Trigger nodemon reload: 2026-06-20 (stamina and slots update)

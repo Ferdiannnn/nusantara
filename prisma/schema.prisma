@@ -22,19 +22,34 @@ model Kingdom {
 }
 
 model Player {
-  id         Int       @id @default(autoincrement())
-  user_id    Int?      // Nullable in case we don't link to a main user table right away
-  username   String    @unique @db.VarChar(50)
-  password   String    @db.VarChar(255)
-  kingdom_id Int
-  score      Int       @default(0)
-  gold       Int       @default(100)
-  role       String    @default("MEMBER") @db.VarChar(20)
-  created_at DateTime  @default(now()) @db.Timestamp(0)
-  updated_at DateTime  @updatedAt @db.Timestamp(0)
+  id              Int       @id @default(autoincrement())
+  user_id         Int?      // Nullable in case we don't link to a main user table right away
+  username        String    @unique @db.VarChar(50)
+  password        String    @db.VarChar(255)
+  kingdom_id      Int
+  score           Int       @default(0)
+  gold            Int       @default(100)
+  role            String    @default("MEMBER") @db.VarChar(20)
+  
+  // Skills System
+  atk_level       Int       @default(1)
+  def_level       Int       @default(1)
+  agi_level       Int       @default(1)
+  crit_rate_level Int       @default(1)
+  crit_dmg_level  Int       @default(1)
+  level           Int       @default(1)
+  exp             Int       @default(0)
+  skill_points    Int       @default(0)
+  stamina         Int       @default(100)
+  last_stamina_regen DateTime @default(now()) @db.Timestamp(0)
 
-  kingdom    Kingdom   @relation(fields: [kingdom_id], references: [id])
-  movements  PlayerTroopMovement[]
+
+  created_at      DateTime  @default(now()) @db.Timestamp(0)
+  updated_at      DateTime  @updatedAt @db.Timestamp(0)
+
+  kingdom         Kingdom   @relation(fields: [kingdom_id], references: [id])
+  movements       PlayerTroopMovement[]
+  equipments      Equipment[]
 }
 
 model Territory {
@@ -79,4 +94,23 @@ model PlayerTroopMovement {
   player            Player    @relation(fields: [player_id], references: [id])
   from_territory    Territory @relation("MovementsFromTerritory", fields: [from_territory_id], references: [id])
   to_territory      Territory @relation("MovementsToTerritory", fields: [to_territory_id], references: [id])
+}
+
+model Equipment {
+  id             Int      @id @default(autoincrement())
+  player_id      Int
+  name           String   @db.VarChar(100)
+  type           String   @db.VarChar(20)  // 'WEAPON', 'ARMOR', 'BOOTS'
+  rarity         String   @db.VarChar(20)  // 'COMMON', 'RARE', 'EPIC', 'LEGENDARY'
+  atk_bonus      Int      @default(0)
+  def_bonus      Int      @default(0)
+  agi_bonus      Int      @default(0)
+  durability     Int      @default(100)
+  max_durability Int      @default(100)
+  sell_price     Int      @default(10)
+  equipped       Boolean  @default(false)
+  crit_rate_bonus Int     @default(0)
+  created_at     DateTime @default(now()) @db.Timestamp(0)
+
+  player         Player   @relation(fields: [player_id], references: [id], onDelete: Cascade)
 }

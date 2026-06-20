@@ -14,6 +14,47 @@ function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+// Helper untuk regenerasi stamina otomatis (1 stamina per 5 detik, max 100)
+async function regenerateStamina(player) {
+    if (!player) return null;
+    if (player.stamina >= 100) {
+        // Update waktu regen terakhir ke sekarang agar tidak berakumulasi jika full lalu berkurang
+        if (new Date() - new Date(player.last_stamina_regen) > 5000) {
+            await prisma.player.update({
+                where: { id: player.id },
+                data: { last_stamina_regen: new Date() }
+            });
+        }
+        return player;
+    }
+    const now = new Date();
+    const lastRegen = new Date(player.last_stamina_regen || now);
+    const secondsDiff = Math.floor((now - lastRegen) / 1000);
+    
+    if (secondsDiff >= 5) {
+        const regenAmount = Math.floor(secondsDiff / 5);
+        const newStamina = Math.min(100, player.stamina + regenAmount);
+        const remainingMs = (secondsDiff % 5) * 1000;
+        const newRegenTime = new Date(now.getTime() - remainingMs);
+        
+        return await prisma.player.update({
+            where: { id: player.id },
+            data: {
+                stamina: newStamina,
+                last_stamina_regen: newRegenTime
+            },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+    }
+    return player;
+}
+
+
 // Endpoint GET: Mengambil data user menggunakan Prisma
 router.get('/users', async (req, res) => {
   try {
@@ -172,13 +213,13 @@ router.post('/game/declare_war', async (req, res) => {
 });
 
 router.post('/game/help_attack', async (req, res) => {
-    const { territory_code, attacker_kingdom_id } = req.body;
+    const { territory_code, player_id } = req.body;
     try {
         let territory = await prisma.territory.findUnique({
             where: { code: territory_code },
             include: {
                 battles: {
-                    where: { status: 'ONGOING', attacker_kingdom_id: attacker_kingdom_id },
+                    where: { status: 'ONGOING' },
                     orderBy: { started_at: 'desc' },
                     take: 1
                 }
@@ -186,18 +227,127 @@ router.post('/game/help_attack', async (req, res) => {
         });
 
         if (!territory || territory.battles.length === 0) {
-            return res.status(400).json({ status: 'error', message: 'Tidak ada peperangan aktif di wilayah ini dari kerajaan Anda.' });
+            return res.status(400).json({ status: 'error', message: 'Tidak ada peperangan aktif di wilayah ini.' });
         }
 
-        const damage = Math.floor(Math.random() * 11) + 10; // 10 to 20
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) },
+            include: { equipments: true }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        const playerRefreshed = await regenerateStamina(player);
+
+        let totalAtkBonus = 0;
+        let totalDefBonus = 0;
+        let totalAgiBonus = 0;
+        let totalCritRateBonus = 0;
+        const activeEquipments = playerRefreshed.equipments.filter(e => e.equipped && e.durability > 0);
+
+        for (let eq of activeEquipments) {
+            totalAtkBonus += eq.atk_bonus;
+            totalDefBonus += eq.def_bonus;
+            totalAgiBonus += eq.agi_bonus;
+            totalCritRateBonus += eq.crit_rate_bonus;
+        }
+
+        const staminaCost = Math.max(2, 10 - (playerRefreshed.def_level - 1) - Math.floor(totalDefBonus / 2));
+        if (playerRefreshed.stamina < staminaCost) {
+            return res.status(400).json({ status: 'error', message: `Stamina tidak cukup! Butuh ${staminaCost} stamina untuk menyerang.` });
+        }
+
+        const hitCost = Math.max(1, 5 - (playerRefreshed.def_level - 1) - totalDefBonus);
+        if (playerRefreshed.gold < hitCost) {
+            return res.status(400).json({ status: 'error', message: `Gold tidak cukup! Butuh ${hitCost} gold untuk menyerang.` });
+        }
+
+        let agiTriggered = false;
+        let updatedEquipmentId = null;
+        let newDurability = 0;
+        let durabilityLostItem = '';
+
+        if (activeEquipments.length > 0) {
+            const agiRate = Math.min(85, (playerRefreshed.agi_level * 5) + totalAgiBonus);
+            if (Math.random() * 100 < agiRate) {
+                agiTriggered = true;
+            } else {
+                const randomEq = activeEquipments[Math.floor(Math.random() * activeEquipments.length)];
+                updatedEquipmentId = randomEq.id;
+                newDurability = Math.max(0, randomEq.durability - 5);
+                durabilityLostItem = randomEq.name;
+            }
+        }
+
+        const baseDmg = Math.floor(Math.random() * 11) + 10;
+        let damage = baseDmg + (playerRefreshed.atk_level - 1) * 2 + totalAtkBonus;
+
+        let isCrit = false;
+        const critRate = Math.min(75, playerRefreshed.crit_rate_level * 4 + totalCritRateBonus);
+        if (Math.random() * 100 < critRate) {
+            isCrit = true;
+            const critMultiplier = 1.5 + (playerRefreshed.crit_dmg_level - 1) * 0.1;
+            damage = Math.round(damage * critMultiplier);
+        }
+
         const newHP = Math.max(0, territory.troops_count - damage);
 
+        const goldGain = Math.floor(Math.random() * 7) + 2;
+        let goldChange = -hitCost + goldGain;
         if (newHP <= 0) {
-            const battleId = territory.battles[0].id;
+            goldChange += 50;
+        }
+
+        const conquered = (newHP <= 0);
+        const gainedExp = 10 + (conquered ? 50 : 0);
+
+        let newExp = playerRefreshed.exp + gainedExp;
+        let newLevel = playerRefreshed.level;
+        let gainedPoints = 0;
+        let leveledUp = false;
+
+        while (newExp >= newLevel * 100) {
+            newExp -= newLevel * 100;
+            newLevel += 1;
+            gainedPoints += 5;
+            leveledUp = true;
+        }
+
+        if (updatedEquipmentId) {
+            await prisma.equipment.update({
+                where: { id: updatedEquipmentId },
+                data: { durability: newDurability }
+            });
+        }
+
+        const updatedPlayer = await prisma.player.update({
+            where: { id: playerRefreshed.id },
+            data: {
+                gold: playerRefreshed.gold + goldChange,
+                stamina: playerRefreshed.stamina - staminaCost,
+                last_stamina_regen: new Date(),
+                level: newLevel,
+                exp: newExp,
+                skill_points: playerRefreshed.skill_points + gainedPoints
+            },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+
+        const ongoingBattle = territory.battles[0];
+        const actualAttackerId = ongoingBattle.attacker_kingdom_id;
+
+        if (conquered) {
+            const battleId = ongoingBattle.id;
             territory = await prisma.territory.update({
                 where: { code: territory_code },
                 data: {
-                    kingdom_id: attacker_kingdom_id,
+                    kingdom_id: actualAttackerId,
                     troops_count: 100
                 }
             });
@@ -206,15 +356,32 @@ router.post('/game/help_attack', async (req, res) => {
                 where: { id: battleId },
                 data: { status: 'ATTACKER_WON', ended_at: new Date() }
             });
-
-            res.json({ status: 'success', message: 'Wilayah berhasil dikuasai!', conquered: true, hp: 100 });
         } else {
             territory = await prisma.territory.update({
                 where: { code: territory_code },
                 data: { troops_count: newHP }
             });
-            res.json({ status: 'success', message: 'Serangan berhasil!', conquered: false, hp: newHP, damage: damage });
         }
+
+        res.json({
+            status: 'success',
+            message: conquered ? 'Wilayah berhasil dikuasai!' : 'Serangan berhasil!',
+            conquered,
+            hp: territory.troops_count,
+            damage,
+            isCrit,
+            agiTriggered,
+            durabilityLostItem,
+            goldChange,
+            staminaCost,
+            expGained: gainedExp,
+            leveledUp,
+            newLevel,
+            newExp,
+            gainedPoints,
+            player: updatedPlayer
+        });
+
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ status: 'error', message: 'Gagal menyerang' });
@@ -222,28 +389,127 @@ router.post('/game/help_attack', async (req, res) => {
 });
 
 router.post('/game/defend_territory', async (req, res) => {
-    const { territory_code, defender_kingdom_id } = req.body;
+    const { territory_code, player_id } = req.body;
     try {
         let territory = await prisma.territory.findUnique({
             where: { code: territory_code },
             include: {
                 battles: {
-                    where: { status: 'ONGOING', defender_kingdom_id: defender_kingdom_id },
+                    where: { status: 'ONGOING' },
                     orderBy: { started_at: 'desc' },
                     take: 1
                 }
             }
         });
 
-        if (!territory || territory.kingdom_id !== defender_kingdom_id || territory.battles.length === 0) {
-            return res.status(400).json({ status: 'error', message: 'Tidak ada peperangan aktif di wilayah ini yang perlu dipertahankan.' });
+        if (!territory || territory.battles.length === 0) {
+            return res.status(400).json({ status: 'error', message: 'Tidak ada peperangan aktif di wilayah ini.' });
         }
 
-        const heal = Math.floor(Math.random() * 11) + 10; // 10 to 20 heal
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) },
+            include: { equipments: true }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        const playerRefreshed = await regenerateStamina(player);
+
+        let totalAtkBonus = 0;
+        let totalDefBonus = 0;
+        let totalAgiBonus = 0;
+        let totalCritRateBonus = 0;
+        const activeEquipments = playerRefreshed.equipments.filter(e => e.equipped && e.durability > 0);
+
+        for (let eq of activeEquipments) {
+            totalAtkBonus += eq.atk_bonus;
+            totalDefBonus += eq.def_bonus;
+            totalAgiBonus += eq.agi_bonus;
+            totalCritRateBonus += eq.crit_rate_bonus;
+        }
+
+        const staminaCost = Math.max(2, 10 - (playerRefreshed.def_level - 1) - Math.floor(totalDefBonus / 2));
+        if (playerRefreshed.stamina < staminaCost) {
+            return res.status(400).json({ status: 'error', message: `Stamina tidak cukup! Butuh ${staminaCost} stamina untuk bertahan.` });
+        }
+
+        const hitCost = Math.max(1, 5 - (playerRefreshed.def_level - 1) - totalDefBonus);
+        if (playerRefreshed.gold < hitCost) {
+            return res.status(400).json({ status: 'error', message: `Gold tidak cukup! Butuh ${hitCost} gold untuk bertahan.` });
+        }
+
+        let agiTriggered = false;
+        let updatedEquipmentId = null;
+        let newDurability = 0;
+        let durabilityLostItem = '';
+
+        if (activeEquipments.length > 0) {
+            const agiRate = Math.min(85, (playerRefreshed.agi_level * 5) + totalAgiBonus);
+            if (Math.random() * 100 < agiRate) {
+                agiTriggered = true;
+            } else {
+                const randomEq = activeEquipments[Math.floor(Math.random() * activeEquipments.length)];
+                updatedEquipmentId = randomEq.id;
+                newDurability = Math.max(0, randomEq.durability - 5);
+                durabilityLostItem = randomEq.name;
+            }
+        }
+
+        const baseHeal = Math.floor(Math.random() * 11) + 10;
+        const heal = baseHeal + (playerRefreshed.def_level - 1) + totalDefBonus;
         const newHP = Math.min(100, territory.troops_count + heal);
 
+        const goldGain = Math.floor(Math.random() * 7) + 2;
+        let goldChange = -hitCost + goldGain;
         if (newHP >= 100) {
-            const battleId = territory.battles[0].id;
+            goldChange += 30;
+        }
+
+        const defended = (newHP >= 100);
+        const gainedExp = 10 + (defended ? 30 : 0);
+
+        let newExp = playerRefreshed.exp + gainedExp;
+        let newLevel = playerRefreshed.level;
+        let gainedPoints = 0;
+        let leveledUp = false;
+
+        while (newExp >= newLevel * 100) {
+            newExp -= newLevel * 100;
+            newLevel += 1;
+            gainedPoints += 5;
+            leveledUp = true;
+        }
+
+        if (updatedEquipmentId) {
+            await prisma.equipment.update({
+                where: { id: updatedEquipmentId },
+                data: { durability: newDurability }
+            });
+        }
+
+        const updatedPlayer = await prisma.player.update({
+            where: { id: playerRefreshed.id },
+            data: {
+                gold: playerRefreshed.gold + goldChange,
+                stamina: playerRefreshed.stamina - staminaCost,
+                last_stamina_regen: new Date(),
+                level: newLevel,
+                exp: newExp,
+                skill_points: playerRefreshed.skill_points + gainedPoints
+            },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+
+        const ongoingBattle = territory.battles[0];
+
+        if (defended) {
+            const battleId = ongoingBattle.id;
             territory = await prisma.territory.update({
                 where: { code: territory_code },
                 data: { troops_count: 100 }
@@ -253,15 +519,31 @@ router.post('/game/defend_territory', async (req, res) => {
                 where: { id: battleId },
                 data: { status: 'DEFENDER_WON', ended_at: new Date() }
             });
-
-            res.json({ status: 'success', message: 'Wilayah berhasil dipertahankan secara penuh!', defended: true, hp: 100 });
         } else {
             territory = await prisma.territory.update({
                 where: { code: territory_code },
                 data: { troops_count: newHP }
             });
-            res.json({ status: 'success', message: 'Pertahanan berhasil!', defended: false, hp: newHP, heal: heal });
         }
+
+        res.json({
+            status: 'success',
+            message: defended ? 'Wilayah berhasil dipertahankan secara penuh!' : 'Pertahanan berhasil!',
+            defended,
+            hp: territory.troops_count,
+            heal,
+            agiTriggered,
+            durabilityLostItem,
+            goldChange,
+            staminaCost,
+            expGained: gainedExp,
+            leveledUp,
+            newLevel,
+            newExp,
+            gainedPoints,
+            player: updatedPlayer
+        });
+
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ status: 'error', message: 'Gagal mempertahankan wilayah' });
@@ -329,4 +611,432 @@ router.post('/game/login', async (req, res) => {
     }
 });
 
-module.exports = router;
+router.get('/game/player/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+        const updatedPlayer = await regenerateStamina(player);
+        res.json({ status: 'success', data: updatedPlayer });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal mengambil data player' });
+    }
+});
+
+router.post('/game/upgrade_skill', async (req, res) => {
+    const { player_id, skill_name } = req.body;
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        const skillField = `${skill_name}_level`;
+        const validSkills = ['atk', 'def', 'agi', 'crit_rate', 'crit_dmg'];
+        if (!validSkills.includes(skill_name)) {
+            return res.status(400).json({ status: 'error', message: 'Skill tidak valid' });
+        }
+
+        const currentLevel = player[skillField] || 1;
+
+        if (player.skill_points < 1) {
+            return res.status(400).json({ status: 'error', message: 'Skill Point tidak cukup! Butuh 1 Skill Point.' });
+        }
+
+        const updatedPlayer = await prisma.player.update({
+            where: { id: player.id },
+            data: {
+                skill_points: player.skill_points - 1,
+                [skillField]: currentLevel + 1
+            },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+
+        res.json({ status: 'success', message: 'Skill berhasil ditingkatkan!', data: updatedPlayer });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal meningkatkan skill' });
+    }
+});
+
+router.post('/game/equip_equipment', async (req, res) => {
+    const { player_id, equipment_id } = req.body;
+    try {
+        const equipment = await prisma.equipment.findUnique({
+            where: { id: parseInt(equipment_id) }
+        });
+        if (!equipment || equipment.player_id !== parseInt(player_id)) {
+            return res.status(404).json({ status: 'error', message: 'Peralatan tidak ditemukan' });
+        }
+
+        // Unequip items of same type
+        await prisma.equipment.updateMany({
+            where: {
+                player_id: parseInt(player_id),
+                type: equipment.type,
+                equipped: true
+            },
+            data: { equipped: false }
+        });
+
+        // Equip this item
+        await prisma.equipment.update({
+            where: { id: equipment.id },
+            data: { equipped: true }
+        });
+
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+        const updatedPlayer = await regenerateStamina(player);
+
+        res.json({ status: 'success', message: `Berhasil memasang ${equipment.name}`, data: updatedPlayer });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal memasang peralatan' });
+    }
+});
+
+router.post('/game/unequip_equipment', async (req, res) => {
+    const { player_id, equipment_id } = req.body;
+    try {
+        const equipment = await prisma.equipment.findUnique({
+            where: { id: parseInt(equipment_id) }
+        });
+        if (!equipment || equipment.player_id !== parseInt(player_id)) {
+            return res.status(404).json({ status: 'error', message: 'Peralatan tidak ditemukan' });
+        }
+
+        // Unequip this item
+        await prisma.equipment.update({
+            where: { id: equipment.id },
+            data: { equipped: false }
+        });
+
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+        const updatedPlayer = await regenerateStamina(player);
+
+        res.json({ status: 'success', message: `Berhasil melepas ${equipment.name}`, data: updatedPlayer });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal melepas peralatan' });
+    }
+});
+
+
+const WEAPON_NAMES = {
+    COMMON: ["Pedang Berkarat", "Keris Tumpul", "Bambu Runcing"],
+    RARE: ["Pedang Baja", "Keris Pusaka", "Tombak Prajurit"],
+    EPIC: ["Pedang Gajah Mada", "Keris Empu Gandring", "Busur Wijayadanu"],
+    LEGENDARY: ["Nenggala", "Pasupati", "Cakra Basudewa"]
+};
+const ARMOR_NAMES = {
+    COMMON: ["Baju Kulit Kusut", "Rompi Bambu", "Jubah Kain"],
+    RARE: ["Zirah Besi Rakyat", "Rompi Kulit Harimau", "Zirah Tembaga"],
+    EPIC: ["Zirah Ksatria Majapahit", "Rompi Wesi Kuning", "Jubah Siliwangi"],
+    LEGENDARY: ["Zirah Antakusuma", "Perisai Dewata", "Jubah Mahapatih"]
+};
+const BOOTS_NAMES = {
+    COMMON: ["Sandal Jerami", "Terompah Kayu", "Sandal Kulit Kusam"],
+    RARE: ["Sepatu Bot Prajurit", "Sandal Kulit Kerbau", "Sepatu Pengintai"],
+    EPIC: ["Sepatu Bayu", "Sepatu Bot Pengembara", "Sandal Angin"],
+    LEGENDARY: ["Sepatu Kresna", "Sepatu Bot Gatotkaca", "Langkah Jagad"]
+};
+const HELMET_NAMES = {
+    COMMON: ["Helm Bambu", "Caping Bambu", "Helm Kulit Kusam"],
+    RARE: ["Pelindung Kepala Prajurit", "Helm Tembaga", "Caping Besi"],
+    EPIC: ["Kulkul Perunggu", "Helm Ksatria Majapahit", "Mahkota Kayu"],
+    LEGENDARY: ["Mahkota Hayam Wuruk", "Kulkul Dewata", "Helm Antakusuma"]
+};
+const ARMS_NAMES = {
+    COMMON: ["Pelindung Lengan Kulit", "Sarung Tangan Kain", "Lengan Lapis Bambu"],
+    RARE: ["Lengan Besi Prajurit", "Sarung Tangan Kulit Tebal", "Lengan Tembaga"],
+    EPIC: ["Lengan Ksatria Majapahit", "Gelang Nanggala", "Sarung Tangan Harimau"],
+    LEGENDARY: ["Gelang Pasupati", "Lengan Mahapatih", "Sarung Tangan Kresna"]
+};
+const LEG_NAMES = {
+    COMMON: ["Pelindung Kaki Kulit", "Pelindung Kaki Bambu", "Pelindung Kaki Kain"],
+    RARE: ["Pelindung Kaki Besi", "Pelindung Kaki Tembaga", "Celana Kulit Tebal"],
+    EPIC: ["Kaki Ksatria Majapahit", "Pelindung Kaki Wesi Kuning", "Celana Siliwangi"],
+    LEGENDARY: ["Pelindung Kaki Antakusuma", "Langkah Gatotkaca", "Kaki Langkah Jagad"]
+};
+
+
+router.post('/game/open_chest', async (req, res) => {
+    const { player_id } = req.body;
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        const cost = 50;
+        if (player.gold < cost) {
+            return res.status(400).json({ status: 'error', message: `Gold tidak cukup! Chest seharga ${cost} gold.` });
+        }
+
+        const rand = Math.random() * 100;
+        let rarity = 'COMMON';
+        let sellPrice = 10;
+        if (rand < 3) {
+            rarity = 'LEGENDARY';
+            sellPrice = 120;
+        } else if (rand < 15) {
+            rarity = 'EPIC';
+            sellPrice = 55;
+        } else if (rand < 40) {
+            rarity = 'RARE';
+            sellPrice = 25;
+        }
+
+        const types = ['WEAPON', 'ARMOR', 'BOOTS', 'HELMET', 'ARMS', 'LEG'];
+        const type = types[Math.floor(Math.random() * types.length)];
+
+        let atkBonus = 0;
+        let defBonus = 0;
+        let agiBonus = 0;
+        let critRateBonus = 0;
+        let name = '';
+
+        if (type === 'WEAPON') {
+            const names = WEAPON_NAMES[rarity];
+            name = names[Math.floor(Math.random() * names.length)];
+            if (rarity === 'COMMON') atkBonus = Math.floor(Math.random() * 3) + 1;
+            else if (rarity === 'RARE') atkBonus = Math.floor(Math.random() * 4) + 4;
+            else if (rarity === 'EPIC') atkBonus = Math.floor(Math.random() * 5) + 8;
+            else if (rarity === 'LEGENDARY') atkBonus = Math.floor(Math.random() * 6) + 15;
+        } else if (type === 'ARMOR') {
+            const names = ARMOR_NAMES[rarity];
+            name = names[Math.floor(Math.random() * names.length)];
+            if (rarity === 'COMMON') defBonus = Math.floor(Math.random() * 2) + 1;
+            else if (rarity === 'RARE') defBonus = Math.floor(Math.random() * 3) + 3;
+            else if (rarity === 'EPIC') defBonus = Math.floor(Math.random() * 4) + 6;
+            else if (rarity === 'LEGENDARY') defBonus = Math.floor(Math.random() * 6) + 10;
+        } else if (type === 'BOOTS') {
+            const names = BOOTS_NAMES[rarity];
+            name = names[Math.floor(Math.random() * names.length)];
+            if (rarity === 'COMMON') agiBonus = Math.floor(Math.random() * 3) + 1;
+            else if (rarity === 'RARE') agiBonus = Math.floor(Math.random() * 3) + 4;
+            else if (rarity === 'EPIC') agiBonus = Math.floor(Math.random() * 4) + 7;
+            else if (rarity === 'LEGENDARY') agiBonus = Math.floor(Math.random() * 7) + 12;
+        } else if (type === 'HELMET') {
+            const names = HELMET_NAMES[rarity];
+            name = names[Math.floor(Math.random() * names.length)];
+            if (rarity === 'COMMON') defBonus = Math.floor(Math.random() * 2) + 1;
+            else if (rarity === 'RARE') defBonus = Math.floor(Math.random() * 2) + 2;
+            else if (rarity === 'EPIC') defBonus = Math.floor(Math.random() * 3) + 4;
+            else if (rarity === 'LEGENDARY') defBonus = Math.floor(Math.random() * 4) + 7;
+        } else if (type === 'ARMS') {
+            const names = ARMS_NAMES[rarity];
+            name = names[Math.floor(Math.random() * names.length)];
+            if (rarity === 'COMMON') critRateBonus = Math.floor(Math.random() * 2) + 2;
+            else if (rarity === 'RARE') critRateBonus = Math.floor(Math.random() * 3) + 4;
+            else if (rarity === 'EPIC') critRateBonus = Math.floor(Math.random() * 4) + 7;
+            else if (rarity === 'LEGENDARY') critRateBonus = Math.floor(Math.random() * 6) + 12;
+        } else if (type === 'LEG') {
+            const names = LEG_NAMES[rarity];
+            name = names[Math.floor(Math.random() * names.length)];
+            if (rarity === 'COMMON') defBonus = Math.floor(Math.random() * 2) + 1;
+            else if (rarity === 'RARE') defBonus = Math.floor(Math.random() * 3) + 2;
+            else if (rarity === 'EPIC') defBonus = Math.floor(Math.random() * 3) + 5;
+            else if (rarity === 'LEGENDARY') defBonus = Math.floor(Math.random() * 5) + 8;
+        }
+
+        const [updatedPlayer, newEquipment] = await prisma.$transaction([
+            prisma.player.update({
+                where: { id: player.id },
+                data: { gold: player.gold - cost }
+            }),
+            prisma.equipment.create({
+                data: {
+                    player_id: player.id,
+                    name: name,
+                    type: type,
+                    rarity: rarity,
+                    atk_bonus: atkBonus,
+                    def_bonus: defBonus,
+                    agi_bonus: agiBonus,
+                    crit_rate_bonus: critRateBonus,
+                    durability: 100,
+                    max_durability: 100,
+                    sell_price: sellPrice
+                }
+            })
+        ]);
+
+        res.json({
+            status: 'success',
+            message: `Membuka Chest! Mendapatkan: ${name} (${rarity})`,
+            data: {
+                equipment: newEquipment,
+                player: updatedPlayer
+            }
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal membuka chest' });
+    }
+});
+
+router.post('/game/buy_equipment', async (req, res) => {
+    const { player_id, item_key } = req.body;
+    try {
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        const cost = 30;
+        if (player.gold < cost) {
+            return res.status(400).json({ status: 'error', message: `Gold tidak cukup! Item toko seharga ${cost} gold.` });
+        }
+
+        let name = '';
+        let type = '';
+        let atkBonus = 0;
+        let defBonus = 0;
+        let agiBonus = 0;
+        let critRateBonus = 0;
+
+        if (item_key === 'wood_sword') {
+            name = "Pedang Kayu";
+            type = "WEAPON";
+            atkBonus = 2;
+        } else if (item_key === 'wood_shield') {
+            name = "Perisai Kayu";
+            type = "ARMOR";
+            defBonus = 1;
+        } else if (item_key === 'leather_boots') {
+            name = "Sepatu Kulit";
+            type = "BOOTS";
+            agiBonus = 2;
+        } else if (item_key === 'leather_helmet') {
+            name = "Helm Kulit";
+            type = "HELMET";
+            defBonus = 1;
+        } else if (item_key === 'cloth_gloves') {
+            name = "Sarung Tangan Kain";
+            type = "ARMS";
+            critRateBonus = 2;
+        } else if (item_key === 'leather_leggings') {
+            name = "Celana Kulit";
+            type = "LEG";
+            defBonus = 1;
+        } else {
+            return res.status(400).json({ status: 'error', message: 'Item tidak valid' });
+        }
+
+        const [updatedPlayer, newEquipment] = await prisma.$transaction([
+            prisma.player.update({
+                where: { id: player.id },
+                data: { gold: player.gold - cost }
+            }),
+            prisma.equipment.create({
+                data: {
+                    player_id: player.id,
+                    name: name,
+                    type: type,
+                    rarity: 'COMMON',
+                    atk_bonus: atkBonus,
+                    def_bonus: defBonus,
+                    agi_bonus: agiBonus,
+                    crit_rate_bonus: critRateBonus,
+                    durability: 100,
+                    max_durability: 100,
+                    sell_price: 10
+                }
+            })
+        ]);
+
+        res.json({
+            status: 'success',
+            message: `Membeli: ${name}`,
+            data: {
+                equipment: newEquipment,
+                player: updatedPlayer
+            }
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal membeli item' });
+    }
+});
+
+router.post('/game/sell_equipment', async (req, res) => {
+    const { player_id, equipment_id } = req.body;
+    try {
+        const equipment = await prisma.equipment.findFirst({
+            where: {
+                id: parseInt(equipment_id),
+                player_id: parseInt(player_id)
+            }
+        });
+
+        if (!equipment) {
+            return res.status(404).json({ status: 'error', message: 'Equipment tidak ditemukan atau bukan milik Anda' });
+        }
+
+        const player = await prisma.player.findUnique({
+            where: { id: parseInt(player_id) }
+        });
+
+        const [updatedPlayer] = await prisma.$transaction([
+            prisma.player.update({
+                where: { id: player.id },
+                data: { gold: player.gold + equipment.sell_price }
+            }),
+            prisma.equipment.delete({
+                where: { id: equipment.id }
+            })
+        ]);
+
+        res.json({
+            status: 'success',
+            message: `Berhasil menjual ${equipment.name} seharga ${equipment.sell_price} gold!`,
+            data: {
+                gold: updatedPlayer.gold
+            }
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal menjual equipment' });
+    }
+});
+
+module.exports = router; // Trigger reload
