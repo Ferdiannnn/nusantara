@@ -50,6 +50,7 @@ model Player {
   kingdom         Kingdom   @relation(fields: [kingdom_id], references: [id])
   movements       PlayerTroopMovement[]
   equipments      Equipment[]
+  marketOrders    MarketOrder[]
 }
 
 model Territory {
@@ -105,12 +106,30 @@ model Equipment {
   atk_bonus      Int      @default(0)
   def_bonus      Int      @default(0)
   agi_bonus      Int      @default(0)
-  durability     Int      @default(100)
-  max_durability Int      @default(100)
-  sell_price     Int      @default(10)
-  equipped       Boolean  @default(false)
-  crit_rate_bonus Int     @default(0)
-  created_at     DateTime @default(now()) @db.Timestamp(0)
+  durability      Int          @default(100)
+  max_durability  Int          @default(100)
+  sell_price      Int          @default(10)
+  equipped        Boolean      @default(false)
+  crit_rate_bonus Int          @default(0)
+  created_at      DateTime     @default(now()) @db.Timestamp(0)
+  on_market       Boolean      @default(false)
+  marketOrder     MarketOrder?
 
   player         Player   @relation(fields: [player_id], references: [id], onDelete: Cascade)
 }
+
+model MarketOrder {
+  id             Int        @id @default(autoincrement())
+  player_id      Int
+  item_name      String     @db.VarChar(100)
+  rarity         String     @db.VarChar(20)
+  item_type      String     @db.VarChar(20) // 'WEAPON', 'HELMET', 'ARMOR', 'ARMS', 'LEG', 'BOOTS'
+  order_type     String     @db.VarChar(10) // 'BUY' atau 'SELL'
+  price          Int
+  equipment_id   Int?       @unique         // Nullable for BUY orders
+  created_at     DateTime   @default(now()) @db.Timestamp(0)
+
+  player         Player     @relation(fields: [player_id], references: [id], onDelete: Cascade)
+  equipment      Equipment? @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+}
+

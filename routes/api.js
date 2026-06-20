@@ -999,43 +999,375 @@ router.post('/game/buy_equipment', async (req, res) => {
 });
 
 router.post('/game/sell_equipment', async (req, res) => {
-    const { player_id, equipment_id } = req.body;
-    try {
-        const equipment = await prisma.equipment.findFirst({
-            where: {
-                id: parseInt(equipment_id),
-                player_id: parseInt(player_id)
-            }
-        });
+    return res.status(400).json({ 
+        status: 'error', 
+        message: 'Penjualan langsung dinonaktifkan! Silakan gunakan tab Pasar untuk mendaftarkan antrean jual.' 
+    });
+});
 
-        if (!equipment) {
-            return res.status(404).json({ status: 'error', message: 'Equipment tidak ditemukan atau bukan milik Anda' });
+// GET market templates (available names by slot & rarity)
+router.get('/game/market/item_templates', (req, res) => {
+    res.json({
+        status: 'success',
+        data: {
+            WEAPON: WEAPON_NAMES,
+            ARMOR: ARMOR_NAMES,
+            BOOTS: BOOTS_NAMES,
+            HELMET: HELMET_NAMES,
+            ARMS: ARMS_NAMES,
+            LEG: LEG_NAMES
         }
+    });
+});
 
-        const player = await prisma.player.findUnique({
-            where: { id: parseInt(player_id) }
+// GET all market orders (grouped for order book)
+router.get('/game/market/orders', async (req, res) => {
+    try {
+        const buyOrders = await prisma.marketOrder.groupBy({
+            by: ['item_name', 'rarity', 'item_type', 'price'],
+            where: { order_type: 'BUY' },
+            _count: { id: true },
+            orderBy: { price: 'desc' }
         });
 
-        const [updatedPlayer] = await prisma.$transaction([
-            prisma.player.update({
-                where: { id: player.id },
-                data: { gold: player.gold + equipment.sell_price }
-            }),
-            prisma.equipment.delete({
-                where: { id: equipment.id }
-            })
-        ]);
+        const sellOrders = await prisma.marketOrder.groupBy({
+            by: ['item_name', 'rarity', 'item_type', 'price'],
+            where: { order_type: 'SELL' },
+            _count: { id: true },
+            orderBy: { price: 'asc' }
+        });
 
         res.json({
             status: 'success',
-            message: `Berhasil menjual ${equipment.name} seharga ${equipment.sell_price} gold!`,
             data: {
-                gold: updatedPlayer.gold
+                buy: buyOrders.map(o => ({
+                    name: o.item_name,
+                    rarity: o.rarity,
+                    type: o.item_type,
+                    price: o.price,
+                    count: o._count.id
+                })),
+                sell: sellOrders.map(o => ({
+                    name: o.item_name,
+                    rarity: o.rarity,
+                    type: o.item_type,
+                    price: o.price,
+                    count: o._count.id
+                }))
             }
         });
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ status: 'error', message: 'Gagal menjual equipment' });
+        res.status(500).json({ status: 'error', message: 'Gagal mengambil data pasar' });
+    }
+});
+
+// GET active orders for a player
+router.get('/game/market/my_orders/:playerId', async (req, res) => {
+    try {
+        const playerId = parseInt(req.params.playerId);
+        const orders = await prisma.marketOrder.findMany({
+            where: { player_id: playerId },
+            include: { equipment: true },
+            orderBy: { created_at: 'desc' }
+        });
+
+        res.json({
+            status: 'success',
+            data: orders
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal mengambil order saya' });
+    }
+});
+
+// POST Place Sell Order
+router.post('/game/market/place_sell_order', async (req, res) => {
+    const { player_id, equipment_id, price } = req.body;
+    try {
+        const pId = parseInt(player_id);
+        const eqId = parseInt(equipment_id);
+        const sellPrice = parseInt(price);
+
+        if (isNaN(sellPrice) || sellPrice <= 0) {
+            return res.status(400).json({ status: 'error', message: 'Harga jual harus lebih besar dari 0 gold' });
+        }
+
+        const equipment = await prisma.equipment.findFirst({
+            where: { id: eqId, player_id: pId }
+        });
+
+        if (!equipment) {
+            return res.status(404).json({ status: 'error', message: 'Peralatan tidak ditemukan atau bukan milik Anda' });
+        }
+
+        if (equipment.equipped) {
+            return res.status(400).json({ status: 'error', message: 'Lepas peralatan terlebih dahulu sebelum dijual di pasar' });
+        }
+
+        if (equipment.on_market) {
+            return res.status(400).json({ status: 'error', message: 'Peralatan sudah terdaftar di pasar' });
+        }
+
+        // Matching Engine: Look for active BUY orders for the exact same item name and rarity with price >= sellPrice
+        const matchingBuyOrder = await prisma.marketOrder.findFirst({
+            where: {
+                item_name: equipment.name,
+                rarity: equipment.rarity,
+                order_type: 'BUY',
+                price: { gte: sellPrice }
+            },
+            orderBy: [
+                { price: 'desc' }, // Highest price bid first
+                { created_at: 'asc' } // Oldest bid first
+            ]
+        });
+
+        if (matchingBuyOrder) {
+            const buyerId = matchingBuyOrder.player_id;
+            const dealPrice = matchingBuyOrder.price; // The bid price is already locked in escrow
+
+            // Execute Transaction
+            const [updatedSeller, updatedBuyer] = await prisma.$transaction([
+                // 1. Give gold to seller
+                prisma.player.update({
+                    where: { id: pId },
+                    data: { gold: { increment: dealPrice } }
+                }),
+                // 2. Buyer gets gold back if there is a difference (not applicable since matchingBuyOrder price is the dealPrice)
+                prisma.player.findUnique({
+                    where: { id: buyerId }
+                }),
+                // 3. Transfer equipment owner
+                prisma.equipment.update({
+                    where: { id: eqId },
+                    data: { player_id: buyerId, on_market: false, equipped: false }
+                }),
+                // 4. Delete the matched BUY order
+                prisma.marketOrder.delete({
+                    where: { id: matchingBuyOrder.id }
+                })
+            ]);
+
+            // Fetch the updated player stats to return
+            const finalSeller = await prisma.player.findUnique({
+                where: { id: pId },
+                include: { kingdom: true }
+            });
+
+            return res.json({
+                status: 'success',
+                message: `Match! Anda menjual ${equipment.name} ke ${matchingBuyOrder.player_id} seharga ${dealPrice} Gold.`,
+                matched: true,
+                data: finalSeller
+            });
+        }
+
+        // No match: list as active SELL order
+        const [newOrder, updatedEq] = await prisma.$transaction([
+            prisma.marketOrder.create({
+                data: {
+                    player_id: pId,
+                    item_name: equipment.name,
+                    rarity: equipment.rarity,
+                    item_type: equipment.type,
+                    order_type: 'SELL',
+                    price: sellPrice,
+                    equipment_id: eqId
+                }
+            }),
+            prisma.equipment.update({
+                where: { id: eqId },
+                data: { on_market: true }
+            })
+        ]);
+
+        const finalSeller = await prisma.player.findUnique({
+            where: { id: pId },
+            include: { kingdom: true }
+        });
+
+        res.json({
+            status: 'success',
+            message: `Peralatan ${equipment.name} berhasil di-list di pasar seharga ${sellPrice} Gold.`,
+            matched: false,
+            data: finalSeller
+        });
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal membuat order jual' });
+    }
+});
+
+// POST Place Buy Order
+router.post('/game/market/place_buy_order', async (req, res) => {
+    const { player_id, item_name, rarity, item_type, price } = req.body;
+    try {
+        const pId = parseInt(player_id);
+        const buyPrice = parseInt(price);
+
+        if (isNaN(buyPrice) || buyPrice <= 0) {
+            return res.status(400).json({ status: 'error', message: 'Harga beli harus lebih besar dari 0 gold' });
+        }
+
+        const buyer = await prisma.player.findUnique({
+            where: { id: pId }
+        });
+
+        if (!buyer) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        if (buyer.gold < buyPrice) {
+            return res.status(400).json({ status: 'error', message: 'Koin emas Anda tidak mencukupi untuk memesan order ini' });
+        }
+
+        // Matching Engine: Look for active SELL orders with price <= buyPrice
+        const matchingSellOrder = await prisma.marketOrder.findFirst({
+            where: {
+                item_name: item_name,
+                rarity: rarity,
+                order_type: 'SELL',
+                price: { lte: buyPrice }
+            },
+            include: { equipment: true },
+            orderBy: [
+                { price: 'asc' }, // Lowest price ask first
+                { created_at: 'asc' } // Oldest ask first
+            ]
+        });
+
+        if (matchingSellOrder) {
+            const sellerId = matchingSellOrder.player_id;
+            const dealPrice = matchingSellOrder.price; // We execute at the seller's offer price
+            const refund = buyPrice - dealPrice;
+
+            // Execute Transaction
+            const [updatedBuyer, updatedSeller] = await prisma.$transaction([
+                // 1. Deduct price from buyer and refund difference
+                prisma.player.update({
+                    where: { id: pId },
+                    data: { gold: { decrement: dealPrice } }
+                }),
+                // 2. Give gold to seller
+                prisma.player.update({
+                    where: { id: sellerId },
+                    data: { gold: { increment: dealPrice } }
+                }),
+                // 3. Transfer equipment owner
+                prisma.equipment.update({
+                    where: { id: matchingSellOrder.equipment_id },
+                    data: { player_id: pId, on_market: false, equipped: false }
+                }),
+                // 4. Delete matched SELL order
+                prisma.marketOrder.delete({
+                    where: { id: matchingSellOrder.id }
+                })
+            ]);
+
+            const finalBuyer = await prisma.player.findUnique({
+                where: { id: pId },
+                include: { kingdom: true }
+            });
+
+            return res.json({
+                status: 'success',
+                message: `Match! Anda membeli ${item_name} seharga ${dealPrice} Gold.${refund > 0 ? ' Sisa ' + refund + ' Gold dikembalikan.' : ''}`,
+                matched: true,
+                data: finalBuyer
+            });
+        }
+
+        // No match: Escrow buyer gold and place BUY order
+        const [updatedBuyer, newOrder] = await prisma.$transaction([
+            prisma.player.update({
+                where: { id: pId },
+                data: { gold: { decrement: buyPrice } }
+            }),
+            prisma.marketOrder.create({
+                data: {
+                    player_id: pId,
+                    item_name: item_name,
+                    rarity: rarity,
+                    item_type: item_type,
+                    order_type: 'BUY',
+                    price: buyPrice
+                }
+            })
+        ]);
+
+        const finalBuyer = await prisma.player.findUnique({
+            where: { id: pId },
+            include: { kingdom: true }
+        });
+
+        res.json({
+            status: 'success',
+            message: `Antrean beli ${item_name} berhasil diposting seharga ${buyPrice} Gold.`,
+            matched: false,
+            data: finalBuyer
+        });
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal membuat order beli' });
+    }
+});
+
+// POST Cancel Market Order
+router.post('/game/market/cancel_order', async (req, res) => {
+    const { player_id, order_id } = req.body;
+    try {
+        const pId = parseInt(player_id);
+        const oId = parseInt(order_id);
+
+        const order = await prisma.marketOrder.findFirst({
+            where: { id: oId, player_id: pId }
+        });
+
+        if (!order) {
+            return res.status(404).json({ status: 'error', message: 'Order tidak ditemukan atau bukan milik Anda' });
+        }
+
+        if (order.order_type === 'SELL') {
+            // Cancel Sell: Update equipment on_market = false
+            await prisma.$transaction([
+                prisma.equipment.update({
+                    where: { id: order.equipment_id },
+                    data: { on_market: false }
+                }),
+                prisma.marketOrder.delete({
+                    where: { id: oId }
+                })
+            ]);
+        } else {
+            // Cancel Buy: Refund locked escrow gold to buyer
+            await prisma.$transaction([
+                prisma.player.update({
+                    where: { id: pId },
+                    data: { gold: { increment: order.price } }
+                }),
+                prisma.marketOrder.delete({
+                    where: { id: oId }
+                })
+            ]);
+        }
+
+        const finalPlayer = await prisma.player.findUnique({
+            where: { id: pId },
+            include: { kingdom: true }
+        });
+
+        res.json({
+            status: 'success',
+            message: 'Order berhasil dibatalkan.',
+            data: finalPlayer
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal membatalkan order' });
     }
 });
 

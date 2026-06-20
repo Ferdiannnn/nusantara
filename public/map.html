@@ -782,6 +782,7 @@
                 <button id="btn-tab-skills" class="tab-btn active" onclick="switchTab('tab-skills')">Skill & Status</button>
                 <button id="btn-tab-inventory" class="tab-btn" onclick="switchTab('tab-inventory')">Peralatan</button>
                 <button id="btn-tab-shop" class="tab-btn" onclick="switchTab('tab-shop')">Toko & Chest</button>
+                <button id="btn-tab-market" class="tab-btn" onclick="switchTab('tab-market')">Pasar</button>
             </div>
 
             <!-- Tab: Skills -->
@@ -938,6 +939,77 @@
                             <div style="color: #3b82f6; font-size: 0.8rem;">DEF +1</div>
                         </div>
                         <button class="btn-buy" onclick="buyItem('leather_leggings')">Beli (30 G)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Market -->
+            <div id="tab-market" class="tab-pane">
+                <div style="background: rgba(10, 10, 15, 0.5); border: 1px solid rgba(255,255,255,0.04); padding: 12px; border-radius: 10px; margin-bottom: 12px;">
+                    <h4 style="margin: 0 0 10px 0; color: #a5b4fc; font-size: 0.85rem; text-transform: uppercase;">Pasang Order Beli Baru</h4>
+                    <form id="market-buy-form" onsubmit="submitBuyOrder(event)" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-items: end;">
+                        <div>
+                            <label style="font-size: 0.65rem; color: #64748b; font-weight: bold; display: block; margin-bottom: 4px; text-transform: uppercase;">Tipe Slot</label>
+                            <select id="market-buy-type" onchange="updateMarketItemNames()" required style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: white; width: 100%;">
+                                <option value="WEAPON">⚔️ WEAPON</option>
+                                <option value="HELMET">🪖 HELMET</option>
+                                <option value="ARMOR">🛡️ ARMOR</option>
+                                <option value="ARMS">🧤 ARMS</option>
+                                <option value="LEG">👖 LEG</option>
+                                <option value="BOOTS">🥾 BOOTS</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.65rem; color: #64748b; font-weight: bold; display: block; margin-bottom: 4px; text-transform: uppercase;">Kelangkaan</label>
+                            <select id="market-buy-rarity" onchange="updateMarketItemNames()" required style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: white; width: 100%;">
+                                <option value="COMMON">COMMON</option>
+                                <option value="RARE">RARE</option>
+                                <option value="EPIC">EPIC</option>
+                                <option value="LEGENDARY">LEGENDARY</option>
+                            </select>
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <label style="font-size: 0.65rem; color: #64748b; font-weight: bold; display: block; margin-bottom: 4px; text-transform: uppercase;">Nama Peralatan</label>
+                            <select id="market-buy-name" required style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: white; width: 100%;">
+                                <!-- Injected -->
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.65rem; color: #64748b; font-weight: bold; display: block; margin-bottom: 4px; text-transform: uppercase;">Harga Beli (Gold)</label>
+                            <input type="number" id="market-buy-price" min="1" required placeholder="Contoh: 50" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: white; width: 100%; box-sizing: border-box; outline: none;">
+                        </div>
+                        <div>
+                            <button type="submit" class="btn-upgrade" style="width: 100%; padding: 8px 10px;">Beli Saham/Item</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div style="background: rgba(10, 10, 15, 0.5); border: 1px solid rgba(255,255,255,0.04); padding: 12px; border-radius: 10px; margin-bottom: 12px;">
+                    <h4 style="margin: 0 0 8px 0; color: #a5b4fc; font-size: 0.85rem; text-transform: uppercase;">Buku Order Aktif (Order Book)</h4>
+                    <div style="max-height: 140px; overflow-y: auto; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.05); border-radius: 6px;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                            <thead>
+                                <tr style="background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.06); color: #94a3b8; font-weight: bold;">
+                                    <th style="padding: 6px 8px;">Item</th>
+                                    <th style="padding: 6px 8px;">Kelangkaan</th>
+                                    <th style="padding: 6px 8px; text-align: center;">Tipe</th>
+                                    <th style="padding: 6px 8px; text-align: right;">Antrean</th>
+                                    <th style="padding: 6px 8px; text-align: right;">Harga (Gold)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="market-order-book">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: #64748b; padding: 10px;">Memuat antrean pasar...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div style="background: rgba(10, 10, 15, 0.5); border: 1px solid rgba(255,255,255,0.04); padding: 12px; border-radius: 10px;">
+                    <h4 style="margin: 0 0 8px 0; color: #a5b4fc; font-size: 0.85rem; text-transform: uppercase;">Antrean Aktif Saya</h4>
+                    <div id="market-my-orders" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto;">
+                        <div style="text-align: center; color: #64748b; padding: 10px;">Tidak ada antrean aktif.</div>
                     </div>
                 </div>
             </div>
@@ -1519,6 +1591,11 @@
             const activeBtnId = 'btn-' + tabId;
             const activeBtn = document.getElementById(activeBtnId);
             if (activeBtn) activeBtn.classList.add('active');
+
+            if (tabId === 'tab-market') {
+                loadMarketData();
+                updateMarketItemNames();
+            }
         }
 
         function refreshPlayerStats() {
@@ -1627,24 +1704,35 @@
                                 if (eq.crit_rate_bonus) bonusText += `💥 CRIT +${eq.crit_rate_bonus}% `;
                                 if (!bonusText) bonusText = 'Normal';
 
-                                const brokenStyle = isBroken ? 'style="border-color: #ef4444; opacity: 0.6;"' : (eq.equipped ? 'style="border-color: #10b981;"' : '');
+                                const isOnMarket = eq.on_market === true;
+                                const brokenStyle = isBroken ? 'style="border-color: #ef4444; opacity: 0.6;"' : (eq.equipped ? 'style="border-color: #10b981;"' : (isOnMarket ? 'style="border-color: #f59e0b;"' : ''));
                                 const brokenText = isBroken ? '<span style="color: #ef4444; font-weight: bold;">(HANCUR)</span>' : '';
                                 const equippedBadge = eq.equipped ? '<span style="color: #10b981; font-weight: bold; font-size: 0.7rem; background: rgba(16,185,129,0.15); padding: 2px 5px; border-radius: 3px; margin-left: 5px;">DIPAKAI</span>' : '';
+                                const marketBadge = isOnMarket ? '<span style="color: #f59e0b; font-weight: bold; font-size: 0.7rem; background: rgba(245,158,11,0.15); padding: 2px 5px; border-radius: 3px; margin-left: 5px;">SEDANG DIJUAL</span>' : '';
 
-                                const equipBtn = eq.equipped ? 
-                                    `<button class="btn-sell" style="background-color: #4f46e5;" onclick="unequipEquipment(${eq.id})">Lepas</button>` : 
-                                    (isBroken ? '' : `<button class="btn-sell" style="background-color: #10b981;" onclick="equipEquipment(${eq.id})">Pasang</button>`);
+                                let equipBtn = '';
+                                if (eq.equipped) {
+                                    equipBtn = `<button class="btn-sell" style="background-color: #4f46e5;" onclick="unequipEquipment(${eq.id})">Lepas</button>`;
+                                } else if (isOnMarket) {
+                                    equipBtn = `<button class="btn-sell" style="background-color: #64748b; opacity: 0.5; cursor: not-allowed;" disabled>Pasang</button>`;
+                                } else if (!isBroken) {
+                                    equipBtn = `<button class="btn-sell" style="background-color: #10b981;" onclick="equipEquipment(${eq.id})">Pasang</button>`;
+                                }
+
+                                const sellBtn = isOnMarket ?
+                                    `<button class="btn-sell" style="background-color: #64748b; opacity: 0.5; cursor: not-allowed;" disabled>Di Pasar</button>` :
+                                    `<button class="btn-sell" onclick="sellEquipment(${eq.id})">Jual (${eq.sell_price} G)</button>`;
 
                                 invHtml += `
                                     <div class="inventory-item rarity-${eq.rarity}" ${brokenStyle}>
                                         <div class="item-details">
-                                            <div class="item-name">${eq.name} ${brokenText} ${equippedBadge}</div>
+                                            <div class="item-name">${eq.name} ${brokenText} ${equippedBadge} ${marketBadge}</div>
                                             <div class="item-stats" style="color: ${isBroken ? '#ef4444' : '#10b981'}; font-size: 0.75rem;">${bonusText} | Kelangkaan: ${eq.rarity}</div>
                                             <div class="item-durability">Durabilitas: ${eq.durability}/${eq.max_durability}</div>
                                         </div>
                                         <div style="display: flex; gap: 5px;">
                                             ${equipBtn}
-                                            <button class="btn-sell" onclick="sellEquipment(${eq.id})">Jual (${eq.sell_price} G)</button>
+                                            ${sellBtn}
                                         </div>
                                     </div>
                                 `;
@@ -1790,13 +1878,20 @@
 
         function sellEquipment(equipmentId) {
             if (!player || !player.id) return;
-            if (!confirm("Apakah Anda yakin ingin menjual item ini?")) return;
-            fetch('/api/game/sell_equipment', {
+            const priceInput = prompt("Masukkan harga jual (dalam Gold):");
+            if (priceInput === null) return; // User cancelled
+            const price = parseInt(priceInput);
+            if (isNaN(price) || price <= 0) {
+                alert("Harga jual harus berupa angka yang lebih besar dari 0 Gold.");
+                return;
+            }
+            fetch('/api/game/market/place_sell_order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     player_id: player.id,
-                    equipment_id: equipmentId
+                    equipment_id: equipmentId,
+                    price: price
                 })
             })
             .then(res => res.json())
@@ -1804,13 +1899,226 @@
                 if (res.status === 'success') {
                     alert(res.message);
                     refreshPlayerStats();
+                    if (document.getElementById('tab-market').classList.contains('active-pane')) {
+                        loadMarketData();
+                    }
                 } else {
                     alert(res.message);
                 }
             })
-            .catch(e => console.error("Error selling equipment", e));
+            .catch(e => console.error("Error placing sell order", e));
         }
         window.sellEquipment = sellEquipment;
+
+        // Market System Helper Functions
+        let marketTemplates = null;
+        function loadMarketTemplates() {
+            if (marketTemplates) return Promise.resolve(marketTemplates);
+            return fetch('/api/game/market/item_templates')
+                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 'success') {
+                        marketTemplates = res.data;
+                        return marketTemplates;
+                    }
+                })
+                .catch(e => console.error("Error loading market templates", e));
+        }
+
+        function updateMarketItemNames() {
+            loadMarketTemplates().then(templates => {
+                if (!templates) return;
+                const slot = document.getElementById('market-buy-type').value;
+                const rarity = document.getElementById('market-buy-rarity').value;
+                const nameSelect = document.getElementById('market-buy-name');
+                nameSelect.innerHTML = '';
+                
+                const names = (templates[slot] && templates[slot][rarity]) || [];
+                names.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    nameSelect.appendChild(opt);
+                });
+            });
+        }
+
+        function loadMarketData() {
+            if (!player || !player.id) return;
+            
+            Promise.all([
+                fetch('/api/game/market/orders?t=' + Date.now()).then(res => res.json()),
+                fetch('/api/game/market/my_orders/' + player.id + '?t=' + Date.now()).then(res => res.json())
+            ])
+            .then(([ordersRes, myOrdersRes]) => {
+                // Render Order Book
+                const orderBookBody = document.getElementById('market-order-book');
+                orderBookBody.innerHTML = '';
+                
+                if (ordersRes.status === 'success') {
+                    const buyOrders = ordersRes.data.buy || [];
+                    const sellOrders = ordersRes.data.sell || [];
+                    
+                    const allOrders = [];
+                    sellOrders.forEach(o => allOrders.push({ ...o, order_type: 'SELL' }));
+                    buyOrders.forEach(o => allOrders.push({ ...o, order_type: 'BUY' }));
+                    
+                    allOrders.sort((a, b) => {
+                        if (a.name !== b.name) return a.name.localeCompare(b.name);
+                        if (a.rarity !== b.rarity) return a.rarity.localeCompare(b.rarity);
+                        if (a.order_type !== b.order_type) return a.order_type === 'SELL' ? -1 : 1;
+                        return b.price - a.price;
+                    });
+
+                    if (allOrders.length === 0) {
+                        orderBookBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #64748b; padding: 10px;">Tidak ada antrean order saat ini.</td></tr>`;
+                    } else {
+                        allOrders.forEach(o => {
+                            const isBuy = o.order_type === 'BUY';
+                            const typeBadge = isBuy ? 
+                                `<span style="color: #10b981; font-weight: bold; background: rgba(16,185,129,0.15); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">BELI</span>` : 
+                                `<span style="color: #ef4444; font-weight: bold; background: rgba(239,68,68,0.15); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">JUAL</span>`;
+                            
+                            let rarityColor = '#fff';
+                            if (o.rarity === 'RARE') rarityColor = '#3b82f6';
+                            else if (o.rarity === 'EPIC') rarityColor = '#a855f7';
+                            else if (o.rarity === 'LEGENDARY') rarityColor = '#f59e0b';
+                            
+                            const row = document.createElement('tr');
+                            row.style.borderBottom = '1px solid rgba(255,255,255,0.03)';
+                            row.innerHTML = `
+                                <td style="padding: 6px 8px; font-weight: 600; color: #e2e8f0;">${o.name}</td>
+                                <td style="padding: 6px 8px; color: ${rarityColor}; font-weight: 700;">${o.rarity}</td>
+                                <td style="padding: 6px 8px; text-align: center;">${typeBadge}</td>
+                                <td style="padding: 6px 8px; text-align: right; color: #94a3b8;">${o.count}x</td>
+                                <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${isBuy ? '#10b981' : '#f59e0b'};">${o.price} G</td>
+                            `;
+                            orderBookBody.appendChild(row);
+                        });
+                    }
+                }
+                
+                // Render My Orders
+                const myOrdersDiv = document.getElementById('market-my-orders');
+                myOrdersDiv.innerHTML = '';
+                
+                if (myOrdersRes.status === 'success') {
+                    const myOrders = myOrdersRes.data || [];
+                    if (myOrders.length === 0) {
+                        myOrdersDiv.innerHTML = `<div style="text-align: center; color: #64748b; padding: 10px;">Tidak ada antrean aktif.</div>`;
+                    } else {
+                        myOrders.forEach(o => {
+                            const isBuy = o.order_type === 'BUY';
+                            const typeBadge = isBuy ? 
+                                `<span style="color: #10b981; font-weight: bold; font-size: 0.7rem; background: rgba(16,185,129,0.15); padding: 2px 5px; border-radius: 3px;">BELI</span>` : 
+                                `<span style="color: #ef4444; font-weight: bold; font-size: 0.7rem; background: rgba(239,68,68,0.15); padding: 2px 5px; border-radius: 3px;">JUAL</span>`;
+                            
+                            let rarityColor = '#fff';
+                            if (o.rarity === 'RARE') rarityColor = '#3b82f6';
+                            else if (o.rarity === 'EPIC') rarityColor = '#a855f7';
+                            else if (o.rarity === 'LEGENDARY') rarityColor = '#f59e0b';
+                            
+                            const card = document.createElement('div');
+                            card.style.display = 'flex';
+                            card.style.justifyContent = 'space-between';
+                            card.style.alignItems = 'center';
+                            card.style.background = 'rgba(255,255,255,0.02)';
+                            card.style.border = '1px solid rgba(255,255,255,0.05)';
+                            card.style.padding = '8px 12px';
+                            card.style.borderRadius = '6px';
+                            card.style.fontSize = '0.75rem';
+                            
+                            card.innerHTML = `
+                                <div style="display: flex; flex-direction: column; gap: 2px;">
+                                    <div style="font-weight: 600; color: #f8fafc;">
+                                        ${typeBadge} <span style="color: ${rarityColor}; margin-left: 4px;">${o.item_name}</span>
+                                    </div>
+                                    <div style="color: #94a3b8; font-size: 0.7rem;">Harga: <span style="font-weight: bold; color: ${isBuy ? '#10b981' : '#f59e0b'}">${o.price} G</span></div>
+                                </div>
+                                <button class="btn-sell" style="background-color: #ef4444; padding: 4px 10px; font-size: 0.7rem; border-radius: 4px;" onclick="cancelOrder(${o.id})">Batal</button>
+                            `;
+                            myOrdersDiv.appendChild(card);
+                        });
+                    }
+                }
+            })
+            .catch(e => {
+                console.error("Error loading market data", e);
+            });
+        }
+
+        function submitBuyOrder(event) {
+            event.preventDefault();
+            if (!player || !player.id) return;
+            
+            const itemType = document.getElementById('market-buy-type').value;
+            const rarity = document.getElementById('market-buy-rarity').value;
+            const itemName = document.getElementById('market-buy-name').value;
+            const price = parseInt(document.getElementById('market-buy-price').value);
+            
+            if (!itemName) {
+                alert("Pilih nama item terlebih dahulu");
+                return;
+            }
+            if (isNaN(price) || price <= 0) {
+                alert("Harga harus lebih besar dari 0");
+                return;
+            }
+            
+            fetch('/api/game/market/place_buy_order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    player_id: player.id,
+                    item_name: itemName,
+                    rarity: rarity,
+                    item_type: itemType,
+                    price: price
+                })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.status === 'success') {
+                    alert(res.message);
+                    document.getElementById('market-buy-price').value = '';
+                    loadMarketData();
+                    refreshPlayerStats();
+                } else {
+                    alert(res.message);
+                }
+            })
+            .catch(e => console.error("Error placing buy order", e));
+        }
+
+        function cancelOrder(orderId) {
+            if (!player || !player.id) return;
+            if (!confirm("Apakah Anda yakin ingin membatalkan antrean order ini?")) return;
+            
+            fetch('/api/game/market/cancel_order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    player_id: player.id,
+                    order_id: orderId
+                })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.status === 'success') {
+                    alert(res.message);
+                    loadMarketData();
+                    refreshPlayerStats();
+                } else {
+                    alert(res.message);
+                }
+            })
+            .catch(e => console.error("Error cancelling order", e));
+        }
+
+        window.loadMarketData = loadMarketData;
+        window.cancelOrder = cancelOrder;
+        window.submitBuyOrder = submitBuyOrder;
+        window.updateMarketItemNames = updateMarketItemNames;
 
         function equipEquipment(equipmentId) {
             if (!player || !player.id) return;
