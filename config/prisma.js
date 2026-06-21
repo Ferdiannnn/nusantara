@@ -3,8 +3,9 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg'); // Import the adapter
 
 // Create the adapter instance with your database URL
+const connectionString = process.env.DATABASE_URL || process.env.nusantara_PRISMA_DATABASE_URL || process.env.nusantara_DATABASE_URL;
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: connectionString,
 });
 
 // Pass the adapter to PrismaClient
