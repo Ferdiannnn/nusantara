@@ -806,7 +806,6 @@
                 <button id="btn-tab-inventory" class="tab-btn" onclick="switchTab('tab-inventory')">Peralatan</button>
                 <button id="btn-tab-shop" class="tab-btn" onclick="switchTab('tab-shop')">Toko & Chest</button>
                 <button id="btn-tab-market" class="tab-btn" onclick="switchTab('tab-market')">Pasar</button>
-                <button id="btn-tab-craft" class="tab-btn" onclick="switchTab('tab-craft')">Manufaktur</button>
             </div>
 
             <!-- Tab: Skills -->
@@ -824,14 +823,6 @@
                 </div>
                 <div class="stamina-bar-container" style="background: rgba(255,255,255,0.1); border-radius: 5px; height: 14px; margin-bottom: 10px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
                     <div id="rpg-stamina-bar" style="background: linear-gradient(90deg, #34d399, #10b981); width: 100%; height: 100%; transition: width 0.3s ease;"></div>
-                </div>
-                <!-- Energi Kerja Bar -->
-                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; color: #fbbf24;">
-                    <span>⚡ ENERGI KERJA</span>
-                    <span id="rpg-energy-text">100 / 100</span>
-                </div>
-                <div class="energy-bar-container" style="background: rgba(255,255,255,0.1); border-radius: 5px; height: 14px; margin-bottom: 10px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
-                    <div id="rpg-energy-bar" style="background: linear-gradient(90deg, #fbbf24, #f59e0b); width: 100%; height: 100%; transition: width 0.3s ease;"></div>
                 </div>
                 <!-- EXP Bar -->
                 <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: bold; margin-bottom: 4px; color: #60a5fa;">
@@ -853,16 +844,9 @@
                     <div class="skill-item">
                         <div>
                             <strong>Defence (Level <span id="val-def-level">1</span>)</strong>
-                            <p style="font-size: 0.75rem; color: #aaa; margin: 2px 0 0 0;">Kurangi biaya hit (-1 G), naikkan max stamina (+10), & regen stamina (+5% speed/level)</p>
+                            <p style="font-size: 0.75rem; color: #aaa; margin: 2px 0 0 0;">Mengurangi biaya hit wilayah (-1 Gold per level)</p>
                         </div>
                         <button class="btn-upgrade" id="btn-upgrade-def" onclick="upgradeSkill('def')">Upgrade (1 Poin)</button>
-                    </div>
-                    <div class="skill-item">
-                        <div>
-                            <strong>Ekonomi (Level <span id="val-eco-level">1</span>)</strong>
-                            <p style="font-size: 0.75rem; color: #aaa; margin: 2px 0 0 0;">Meningkatkan batas Energi Kerja (+10) dan kecepatan regenerasinya (+5% speed per level)</p>
-                        </div>
-                        <button class="btn-upgrade" id="btn-upgrade-eco" onclick="upgradeSkill('eco')">Upgrade (1 Poin)</button>
                     </div>
                     <div class="skill-item">
                         <div>
@@ -937,7 +921,7 @@
                 </div>
 
                 <!-- Chest Probability Rates Editor -->
-                <div id="chest-rates-editor-panel" style="display: none; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.06); padding: 12px 16px; border-radius: 12px; margin-bottom: 15px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);">
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.06); padding: 12px 16px; border-radius: 12px; margin-bottom: 15px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);">
                     <h5 style="margin: 0 0 10px 0; color: #fbbf24; font-size: 0.8rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">⚙️ Atur Probabilitas Chest</h5>
                     <form id="chest-rates-form" onsubmit="updateChestRates(event)" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                         <div>
@@ -1080,33 +1064,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Tab: Crafting (Manufaktur) -->
-            <div id="tab-craft" class="tab-pane">
-                <!-- Raw Materials Stats Banner -->
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 12px; border-radius: 8px; text-align: center;">
-                    <div>
-                        <div style="font-size: 1.25rem; margin-bottom: 3px;">🪵</div>
-                        <div style="font-size: 0.65rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Kayu</div>
-                        <div id="craft-wood-qty" style="font-size: 1.05rem; font-weight: 800; color: #fff;">0</div>
-                    </div>
-                    <div style="border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
-                        <div style="font-size: 1.25rem; margin-bottom: 3px;">⚙️</div>
-                        <div style="font-size: 0.65rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Besi</div>
-                        <div id="craft-iron-qty" style="font-size: 1.05rem; font-weight: 800; color: #fff;">0</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 1.25rem; margin-bottom: 3px;">🌶️</div>
-                        <div style="font-size: 0.65rem; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Rempah</div>
-                        <div id="craft-spices-qty" style="font-size: 1.05rem; font-weight: 800; color: #fff;">0</div>
-                    </div>
-                </div>
-
-                <h4 style="margin: 0 0 10px 0; color: #a5b4fc; font-size: 0.85rem; text-transform: uppercase;">Daftar Resep Tempaan</h4>
-                <div id="craft-recipes-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto; padding-right: 4px;">
-                    <!-- Injected dynamically by JS -->
-                </div>
-            </div>
         </div>
     </div>
 
@@ -1157,83 +1114,29 @@
         let player = null;
         let selectedKingdomId = null;
 
-        function formatRemainingTime(expiresAtStr) {
-            if (!expiresAtStr) return '';
-            const diff = new Date(expiresAtStr) - new Date();
-            if (diff <= 0) return 'Kedaluwarsa';
-            
-            const diffHours = Math.floor(diff / (1000 * 60 * 60));
-            const diffDays = Math.floor(diffHours / 24);
-            const remHours = diffHours % 24;
-            const diffMins = Math.floor((diff / (1000 * 60)) % 60);
-            
-            if (diffDays > 0) {
-                return `${diffDays} hari ${remHours} jam`;
-            } else if (remHours > 0) {
-                return `${remHours} jam ${diffMins} menit`;
-            } else {
-                return `${diffMins} menit`;
-            }
-        }
-
-        function updatePlayerProfileUI(targetPlayer) {
-            if (!targetPlayer || !targetPlayer.kingdom) {
-                document.getElementById('player-profile').innerHTML = `
-                    <div class="player-avatar">?</div>
-                    <div class="player-stats">
-                        <div class="name">Tamu / Pengunjung</div>
-                        <div class="kingdom" style="color: #cbd5e1; font-size: 0.75rem;">Silakan masuk untuk berinteraksi</div>
-                        <div style="margin-top: 5px;">
-                            <button onclick="window.location.href='/login.html'" class="rpg-btn" style="padding: 4px 10px; font-size: 0.7rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: #fff; cursor: pointer;">Masuk / Login</button>
-                        </div>
-                    </div>
-                `;
-                return;
-            }
-            const staminaVal = targetPlayer.stamina !== undefined ? targetPlayer.stamina : 100;
-            const energyVal = targetPlayer.energy !== undefined ? targetPlayer.energy : 100;
-            const goldVal = targetPlayer.gold !== undefined ? targetPlayer.gold : 0;
-            const maxStamina = 100 + ((targetPlayer.def_level || 1) - 1) * 10;
-            const maxEnergy = 100 + ((targetPlayer.eco_level || 1) - 1) * 10;
-            const staminaPct = Math.min(100, Math.floor((staminaVal / maxStamina) * 100));
-            const energyPct = Math.min(100, Math.floor((energyVal / maxEnergy) * 100));
-            document.getElementById('player-profile').innerHTML = `
-                <div class="player-avatar">${targetPlayer.username.charAt(0).toUpperCase()}</div>
-                <div class="player-stats">
-                    <div class="name">Lv.${targetPlayer.level || 1} ${targetPlayer.username} ${targetPlayer.role === 'KING' ? '(👑 Raja)' : '(Prajurit)'}</div>
-                    <div class="kingdom" style="color: ${targetPlayer.kingdom.color_hex}">Kerajaan ${targetPlayer.kingdom.name} (💰 ${goldVal} G)</div>
-                    <div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px;">
-                        <div style="display: flex; align-items: center; gap: 5px;">
-                            <span style="font-size: 0.65rem; color: #10b981; font-weight: bold; width: 65px;">⚔️ STM: ${staminaVal}/${maxStamina}</span>
-                            <div style="background: rgba(255,255,255,0.15); width: 60px; height: 5px; border-radius: 2.5px; overflow: hidden;">
-                                <div style="background: #10b981; width: ${staminaPct}%; height: 100%;"></div>
-                            </div>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 5px;">
-                            <span style="font-size: 0.65rem; color: #fbbf24; font-weight: bold; width: 65px;">⚡ ENG: ${energyVal}/${maxEnergy}</span>
-                            <div style="background: rgba(255,255,255,0.15); width: 60px; height: 5px; border-radius: 2.5px; overflow: hidden;">
-                                <div style="background: #fbbf24; width: ${energyPct}%; height: 100%;"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
         if (!playerDataStr) {
-            player = null;
-            selectedKingdomId = null;
-            updatePlayerProfileUI(null);
+            window.location.href = '/register.html';
         } else {
             player = JSON.parse(playerDataStr);
             if (!player || !player.kingdom) {
                 localStorage.removeItem('player');
-                player = null;
-                selectedKingdomId = null;
-                updatePlayerProfileUI(null);
+                window.location.href = '/login.html';
             } else {
                 selectedKingdomId = player.kingdom_id;
-                updatePlayerProfileUI(player);
+                const staminaVal = player.stamina !== undefined ? player.stamina : 100;
+                document.getElementById('player-profile').innerHTML = `
+                    <div class="player-avatar">${player.username.charAt(0).toUpperCase()}</div>
+                    <div class="player-stats">
+                        <div class="name">Lv.${player.level || 1} ${player.username} ${player.role === 'KING' ? '(👑 Raja)' : '(Prajurit)'}</div>
+                        <div class="kingdom" style="color: ${player.kingdom.color_hex}">Kerajaan ${player.kingdom.name}</div>
+                        <div style="display: flex; align-items: center; gap: 5px; margin-top: 4px;">
+                            <span style="font-size: 0.7rem; color: #10b981; font-weight: bold;">⚡ ${staminaVal}/100</span>
+                            <div style="background: rgba(255,255,255,0.15); width: 60px; height: 6px; border-radius: 3px; overflow: hidden;">
+                                <div style="background: #10b981; width: ${staminaVal}%; height: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
         }
 
@@ -1323,15 +1226,15 @@
                 // Cek kepemilikan terbaru dari territoriesDb!
                 const currentTData = territoriesDb[code];
                 const currentOwner = currentTData && currentTData.kingdom ? currentTData.kingdom.name : "Netral";
-                const isOwnedByUs = currentTData && currentTData.kingdom && player && currentTData.kingdom.id === player.kingdom_id;
+                const isOwnedByUs = currentTData && currentTData.kingdom && currentTData.kingdom.id === player.kingdom_id;
 
                 // Hitung apakah kita punya wilayah
-                const myTerritories = player ? Object.values(territoriesDb).filter(t => t.kingdom_id === player.kingdom_id) : [];
-                const isFirstAttack = player ? myTerritories.length === 0 : false;
+                const myTerritories = Object.values(territoriesDb).filter(t => t.kingdom_id === player.kingdom_id);
+                const isFirstAttack = myTerritories.length === 0;
 
                 // Cek apakah wilayah ini bertetangga dengan salah satu wilayah kita
                 let isAdjacent = false;
-                if (player && !isFirstAttack) {
+                if (!isFirstAttack) {
                     for (let t of myTerritories) {
                         const neighbors = adjacencyDb[t.code] || [];
                         if (neighbors.includes(code)) {
@@ -1346,8 +1249,8 @@
                 if (currentTData && currentTData.battles && currentTData.battles.length > 0) {
                     ongoingBattle = currentTData.battles[0];
                 }
-                const isOurBattle = ongoingBattle && player && ongoingBattle.attacker_kingdom_id === player.kingdom_id;
-                const isBeingAttacked = ongoingBattle && player && ongoingBattle.defender_kingdom_id === player.kingdom_id;
+                const isOurBattle = ongoingBattle && ongoingBattle.attacker_kingdom_id === player.kingdom_id;
+                const isBeingAttacked = ongoingBattle && ongoingBattle.defender_kingdom_id === player.kingdom_id;
 
                 let btnLabel = "";
                 let isDisabled = false;
@@ -1374,20 +1277,15 @@
                     if (isOwnedByUs) {
                         btnLabel = "Aman / Sudah Dikuasai";
                         isDisabled = true;
-                    } else if (player && !isFirstAttack && !isAdjacent) {
+                    } else if (!isFirstAttack && !isAdjacent) {
                         btnLabel = "Terlalu Jauh!";
                         isDisabled = true;
                     } else {
-                        if (player) {
-                            if (player.role === 'KING') {
-                                btnLabel = "Deklarasi Perang!";
-                            } else {
-                                btnLabel = "Menunggu Deklarasi Raja";
-                                isDisabled = true;
-                            }
+                        if (player.role === 'KING') {
+                            btnLabel = "Deklarasi Perang!";
                         } else {
-                            btnLabel = "Masuk untuk Berperang";
-                            isDisabled = false;
+                            btnLabel = "Menunggu Deklarasi Raja";
+                            isDisabled = true;
                         }
                     }
                 }
@@ -1412,47 +1310,6 @@
                     `;
                 }
 
-                let harvestHtml = '';
-                if (currentTData) {
-                    if (currentTData.resource_type) {
-                        let resourceLabel = 'Besi ⚙️';
-                        if (currentTData.resource_type === 'spices') {
-                            resourceLabel = 'Rempah-rempah 🌶️';
-                        } else if (currentTData.resource_type === 'wood') {
-                            resourceLabel = 'Kayu 🪵';
-                        }
-                        
-                        const timeStr = formatRemainingTime(currentTData.resource_expires_at);
-                        
-                        if (isOwnedByUs) {
-                            harvestHtml = `
-                                <div style="margin-top: 15px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <div style="font-size: 0.8rem; color: #aaa; margin-bottom: 6px;">Sumber Daya Teridentifikasi:</div>
-                                    <div style="font-size: 0.95rem; font-weight: bold; color: #fbbf24; margin-bottom: 4px;">${resourceLabel}</div>
-                                    <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 10px;">⏳ Tersedia selama: <strong style="color: #fff;">${timeStr}</strong></div>
-                                    <button id="btn-harvest" class="btn-attack" onclick="harvestResources(${currentTData.id})" style="background: linear-gradient(90deg, #f59e0b, #d97706); margin-top: 0; width: 100%;">
-                                        ⛏️ Panen Sumber Daya (⚡ 10)
-                                    </button>
-                                </div>
-                            `;
-                        } else {
-                            harvestHtml = `
-                                <div style="margin-top: 15px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04);">
-                                    <div style="font-size: 0.8rem; color: #888; margin-bottom: 6px;">Sumber Daya Teridentifikasi:</div>
-                                    <div style="font-size: 0.9rem; font-weight: bold; color: #a1a1aa; margin-bottom: 4px;">${resourceLabel}</div>
-                                    <div style="font-size: 0.7rem; color: #71717a;">⏳ Tersedia selama: ${timeStr}</div>
-                                </div>
-                            `;
-                        }
-                    } else {
-                        harvestHtml = `
-                            <div style="margin-top: 15px; padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); text-align: center; color: #71717a; font-size: 0.75rem;">
-                                📭 Tidak ada sumber daya alam aktif di wilayah ini saat ini
-                            </div>
-                        `;
-                    }
-                }
-
                 document.getElementById('sidebar-content').innerHTML = `
                     <div class="territory-card">
                         <div class="t-title">${name}</div>
@@ -1463,17 +1320,12 @@
                         </div>
                         ${progressHtml}
                         ${buttonsHtml}
-                        ${harvestHtml}
                         <div id="battle-log" style="margin-top:15px; font-size:0.8rem; padding:12px; border-radius:10px; background:rgba(10,10,15,0.7); display:none; border:1px solid rgba(255,255,255,0.06); max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
                     </div>
                 `;
 
                 if (isOngoingBattle) {
                     const handleActionClick = (action, btn) => {
-                        if (!player || !player.id) {
-                            window.location.href = '/login.html';
-                            return;
-                        }
                         const originalLabel = btn.innerHTML;
                         btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;"></div>';
                         btn.disabled = true;
@@ -1496,7 +1348,20 @@
                                 if (res.player) {
                                     player = res.player;
                                     localStorage.setItem('player', JSON.stringify(player));
-                                    updatePlayerProfileUI(player);
+                                    const staminaVal = player.stamina !== undefined ? player.stamina : 100;
+                                    document.getElementById('player-profile').innerHTML = `
+                                        <div class="player-avatar">${player.username.charAt(0).toUpperCase()}</div>
+                                        <div class="player-stats">
+                                            <div class="name">Lv.${player.level || 1} ${player.username} ${player.role === 'KING' ? '(👑 Raja)' : '(Prajurit)'}</div>
+                                            <div class="kingdom" style="color: ${player.kingdom.color_hex}">Kerajaan ${player.kingdom.name} (💰 ${player.gold} G)</div>
+                                            <div style="display: flex; align-items: center; gap: 5px; margin-top: 4px;">
+                                                <span style="font-size: 0.7rem; color: #10b981; font-weight: bold;">⚡ ${staminaVal}/100</span>
+                                                <div style="background: rgba(255,255,255,0.15); width: 60px; height: 6px; border-radius: 3px; overflow: hidden;">
+                                                    <div style="background: #10b981; width: ${staminaVal}%; height: 100%;"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
                                 }
 
                                 const logEl = document.getElementById('battle-log');
@@ -1609,10 +1474,6 @@
                 } else {
                     if (!isDisabled) {
                         document.getElementById('btn-attack').addEventListener('click', () => {
-                            if (!player || !player.id) {
-                                window.location.href = '/login.html';
-                                return;
-                            }
                             const btn = document.getElementById('btn-attack');
                             const originalLabel = btn.innerHTML;
                             btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Memproses...';
@@ -1768,10 +1629,6 @@
 
         // RPG system frontend logic
         function openRPGModal() {
-            if (!player || !player.id) {
-                window.location.href = '/login.html';
-                return;
-            }
             document.getElementById('rpg-modal').style.display = 'flex';
             refreshPlayerStats();
         }
@@ -1798,8 +1655,6 @@
                 updateMarketItemNames();
             } else if (tabId === 'tab-shop') {
                 loadChestRates();
-            } else if (tabId === 'tab-craft') {
-                refreshCraftingTab();
             }
         }
 
@@ -1812,33 +1667,28 @@
                         player = res.data;
                         localStorage.setItem('player', JSON.stringify(player));
                         
-                        // Only show rates editor for player with ID 1
-                        const ratesEditorPanel = document.getElementById('chest-rates-editor-panel');
-                        if (ratesEditorPanel) {
-                            if (player.id === 1) {
-                                ratesEditorPanel.style.display = 'block';
-                            } else {
-                                ratesEditorPanel.style.display = 'none';
-                            }
-                        }
-                        
                         const staminaVal = player.stamina !== undefined ? player.stamina : 100;
-                        const energyVal = player.energy !== undefined ? player.energy : 100;
-                        const maxStamina = 100 + ((player.def_level || 1) - 1) * 10;
-                        const maxEnergy = 100 + ((player.eco_level || 1) - 1) * 10;
-                        const staminaPct = Math.min(100, Math.floor((staminaVal / maxStamina) * 100));
-                        const energyPct = Math.min(100, Math.floor((energyVal / maxEnergy) * 100));
-                        updatePlayerProfileUI(player);
+                        document.getElementById('player-profile').innerHTML = `
+                            <div class="player-avatar">${player.username.charAt(0).toUpperCase()}</div>
+                            <div class="player-stats">
+                                <div class="name">Lv.${player.level || 1} ${player.username} ${player.role === 'KING' ? '(👑 Raja)' : '(Prajurit)'}</div>
+                                <div class="kingdom" style="color: ${player.kingdom.color_hex}">Kerajaan ${player.kingdom.name} (💰 ${player.gold} G)</div>
+                                <div style="display: flex; align-items: center; gap: 5px; margin-top: 4px;">
+                                    <span style="font-size: 0.7rem; color: #10b981; font-weight: bold;">⚡ ${staminaVal}/100</span>
+                                    <div style="background: rgba(255,255,255,0.15); width: 60px; height: 6px; border-radius: 3px; overflow: hidden;">
+                                        <div style="background: #10b981; width: ${staminaVal}%; height: 100%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
 
                         document.getElementById('rpg-gold').innerText = player.gold;
                         document.getElementById('rpg-score').innerText = player.score;
                         document.getElementById('rpg-level').innerText = player.level || 1;
                         document.getElementById('rpg-skill-points').innerText = player.skill_points || 0;
 
-                        document.getElementById('rpg-stamina-bar').style.width = staminaPct + '%';
-                        document.getElementById('rpg-stamina-text').innerText = staminaVal + ' / ' + maxStamina;
-                        document.getElementById('rpg-energy-bar').style.width = energyPct + '%';
-                        document.getElementById('rpg-energy-text').innerText = energyVal + ' / ' + maxEnergy;
+                        document.getElementById('rpg-stamina-bar').style.width = staminaVal + '%';
+                        document.getElementById('rpg-stamina-text').innerText = staminaVal + ' / 100';
 
                         const nextLevelExp = Math.floor(100 * Math.pow(player.level || 1, 1.5));
                         const expPercent = Math.min(100, Math.floor(((player.exp || 0) / nextLevelExp) * 100));
@@ -1848,7 +1698,7 @@
                         const expNeeded = nextLevelExp - (player.exp || 0);
                         document.getElementById('rpg-exp-needed-text').innerText = `Butuh ${expNeeded} XP lagi untuk naik level`;
 
-                        const skills = ['atk', 'def', 'agi', 'crit_rate', 'crit_dmg', 'eco'];
+                        const skills = ['atk', 'def', 'agi', 'crit_rate', 'crit_dmg'];
                         skills.forEach(s => {
                             const level = player[s + '_level'] || 1;
                             document.getElementById('val-' + s + '-level').innerText = level;
@@ -1934,7 +1784,7 @@
 
                                 const sellBtn = isOnMarket ?
                                     `<button class="btn-sell" style="background-color: #64748b; opacity: 0.5; cursor: not-allowed;" disabled>Di Pasar</button>` :
-                                    `<button class="btn-sell" onclick="sellEquipment(${eq.id})">Jual (${eq.sell_price} G)</button>`;
+                                    `<button class="btn-sell" onclick="sellEquipment(${eq.id})">Jual</button>`;
 
                                 invHtml += `
                                     <div class="inventory-item rarity-${eq.rarity}" ${brokenStyle}>
@@ -2032,193 +1882,6 @@
         }
         window.upgradeSkill = upgradeSkill;
 
-        const recipes = [
-            {
-                key: 'knight_sword',
-                name: 'Pedang Ksatria',
-                type: 'WEAPON',
-                rarity: 'RARE',
-                stats: '⚔️ ATK +6',
-                cost: { gold: 150, wood: 5, iron: 15, spices: 0 }
-            },
-            {
-                key: 'iron_plate',
-                name: 'Zirah Besi Rakyat',
-                type: 'ARMOR',
-                rarity: 'RARE',
-                stats: '🛡️ DEF +4',
-                cost: { gold: 200, wood: 0, iron: 20, spices: 0 }
-            },
-            {
-                key: 'wanderer_boots',
-                name: 'Sepatu Bot Pengembara',
-                type: 'BOOTS',
-                rarity: 'EPIC',
-                stats: '⚡ AGI +8%',
-                cost: { gold: 400, wood: 10, iron: 0, spices: 15 }
-            },
-            {
-                key: 'hayam_crown',
-                name: 'Mahkota Hayam Wuruk',
-                type: 'HELMET',
-                rarity: 'LEGENDARY',
-                stats: '🛡️ DEF +9',
-                cost: { gold: 1000, wood: 0, iron: 40, spices: 30 }
-            }
-        ];
-
-        function harvestResources(territoryId) {
-            if (!player || !player.id) {
-                window.location.href = '/login.html';
-                return;
-            }
-            const btn = document.getElementById('btn-harvest');
-            let originalText = btn ? btn.innerHTML : '';
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;vertical-align:middle;"></div> Memanen...';
-            }
-            fetch('/api/game/harvest', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    player_id: player.id,
-                    territory_id: territoryId
-                })
-            })
-            .then(res => res.json())
-            .then(res => {
-                if (res.status === 'success') {
-                    alert(res.message);
-                    player = res.data.player;
-                    localStorage.setItem('player', JSON.stringify(player));
-                    refreshPlayerStats();
-                } else {
-                    alert(res.message);
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert('Terjadi kesalahan saat memanen');
-            })
-            .finally(() => {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                }
-            });
-        }
-        window.harvestResources = harvestResources;
-
-        function refreshCraftingTab() {
-            if (!player) return;
-            
-            document.getElementById('craft-wood-qty').innerText = player.wood || 0;
-            document.getElementById('craft-iron-qty').innerText = player.iron || 0;
-            document.getElementById('craft-spices-qty').innerText = player.spices || 0;
-
-            let html = '';
-            recipes.forEach(r => {
-                const hasWood = (player.wood || 0) >= r.cost.wood;
-                const hasIron = (player.iron || 0) >= r.cost.iron;
-                const hasSpices = (player.spices || 0) >= r.cost.spices;
-                const hasGold = (player.gold || 0) >= r.cost.gold;
-                const canCraft = hasWood && hasIron && hasSpices && hasGold;
-
-                let costItems = [];
-                if (r.cost.wood > 0) {
-                    costItems.push(`<span style="color: ${hasWood ? '#10b981' : '#ef4444'}">${hasWood ? '✔️' : '❌'} 🪵 ${r.cost.wood} Kayu</span>`);
-                }
-                if (r.cost.iron > 0) {
-                    costItems.push(`<span style="color: ${hasIron ? '#10b981' : '#ef4444'}">${hasIron ? '✔️' : '❌'} ⚙️ ${r.cost.iron} Besi</span>`);
-                }
-                if (r.cost.spices > 0) {
-                    costItems.push(`<span style="color: ${hasSpices ? '#10b981' : '#ef4444'}">${hasSpices ? '✔️' : '❌'} 🌶️ ${r.cost.spices} Rempah</span>`);
-                }
-                costItems.push(`<span style="color: ${hasGold ? '#facc15' : '#ef4444'}">${hasGold ? '🪙' : '❌'} 💰 ${r.cost.gold} Gold</span>`);
-
-                let rarityColor = '#fff';
-                if (r.rarity === 'RARE') rarityColor = '#3b82f6';
-                else if (r.rarity === 'EPIC') rarityColor = '#a855f7';
-                else if (r.rarity === 'LEGENDARY') rarityColor = '#f59e0b';
-
-                let emoji = '⚔️';
-                if (r.type === 'HELMET') emoji = '🪖';
-                else if (r.type === 'ARMOR') emoji = '🛡️';
-                else if (r.type === 'BOOTS') emoji = '🥾';
-
-                html += `
-                    <div style="display: flex; gap: 12px; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 12px; border-radius: 8px;">
-                        <div style="font-size: 2.2rem; background: rgba(255,255,255,0.03); border-radius: 8px; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.05);">${emoji}</div>
-                        <div style="flex: 1;">
-                            <div style="font-size: 0.9rem; font-weight: bold; color: ${rarityColor};">${r.name}</div>
-                            <div style="font-size: 0.75rem; color: #a5b4fc; font-weight: bold; margin: 2px 0 6px 0;">${r.stats} | <span style="font-size: 0.7rem; color: ${rarityColor}; opacity: 0.85;">${r.rarity}</span></div>
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.7rem; font-weight: bold;">
-                                ${costItems.join(' | ')}
-                            </div>
-                        </div>
-                        <div>
-                            <button class="btn-upgrade" onclick="craftItem('${r.key}')" ${canCraft ? '' : 'disabled style="opacity: 0.4; cursor: not-allowed;"'} style="width: auto; padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; margin: 0;">
-                                ⚒️ Buat
-                            </button>
-                        </div>
-                    </div>
-                `;
-            });
-
-            document.getElementById('craft-recipes-container').innerHTML = html;
-        }
-        window.refreshCraftingTab = refreshCraftingTab;
-
-        function craftItem(recipeKey) {
-            if (!player || !player.id) return;
-
-            const overlay = document.getElementById('chest-opening-overlay');
-            const emojiEl = document.getElementById('chest-opening-emoji');
-            const textEl = document.getElementById('chest-opening-text');
-            
-            emojiEl.innerText = "⚒️";
-            emojiEl.className = "shaking-chest";
-            textEl.innerText = "MENEMPA PERALATAN... 🔨";
-            overlay.style.display = "flex";
-
-            fetch('/api/game/craft', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    player_id: player.id,
-                    recipe_key: recipeKey
-                })
-            })
-            .then(res => res.json())
-            .then(res => {
-                if (res.status === 'success') {
-                    setTimeout(() => {
-                        emojiEl.className = "burst-chest";
-                        textEl.innerText = "TEMPAAN SELESAI! 🎉";
-                        
-                        setTimeout(() => {
-                            overlay.style.display = "none";
-                            showChestLootModal(res.data.equipment);
-                            player = res.data.player;
-                            localStorage.setItem('player', JSON.stringify(player));
-                            refreshPlayerStats();
-                            refreshCraftingTab();
-                        }, 400);
-                    }, 1200);
-                } else {
-                    overlay.style.display = "none";
-                    alert(res.message);
-                }
-            })
-            .catch(e => {
-                console.error("Error crafting item", e);
-                overlay.style.display = "none";
-                alert('Terjadi kesalahan saat membuat peralatan');
-            });
-        }
-        window.craftItem = craftItem;
-
         function openChest() {
             if (!player || !player.id) return;
             
@@ -2305,7 +1968,7 @@
 
         function sellEquipment(equipmentId) {
             if (!player || !player.id) return;
-            const priceInput = prompt("Masukkan harga jual (dalam Gold):");
+            const priceInput = prompt("Masukkan harga jual");
             if (priceInput === null) return; // User cancelled
             const price = parseInt(priceInput);
             if (isNaN(price) || price <= 0) {
@@ -2609,7 +2272,6 @@
         }
 
         function loadChestRates() {
-            if (!player || player.id !== 1) return;
             fetch('/api/game/chest_rates')
                 .then(res => res.json())
                 .then(res => {

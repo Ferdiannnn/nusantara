@@ -2,11 +2,12 @@ var express = require('express');
 var router = express.Router();
 
 router.get('/', function(req, res, next) {
-  res.redirect('/map');
+  res.redirect('http://localhost:3001');
 });
 
 router.get('/map', function(req, res, next) {
-  res.sendFile(require('path').join(__dirname, '../public/map.html'));
+  res.redirect('http://localhost:3001/map');
 });
 
 module.exports = router;
+
