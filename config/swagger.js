@@ -1,4 +1,5 @@
 const swaggerJsDoc = require('swagger-jsdoc');
+const path = require('path');
 
 // Cek apakah sedang berjalan di Vercel/Production
 const isVercel = process.env.NODE_ENV === 'production';

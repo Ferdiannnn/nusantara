@@ -50,4 +50,14 @@ const upgradeSkill = async (req, res) => {
     }
 };
 
-module.exports = { register, login, getPlayer, getKingdoms, upgradeSkill };
+const changePassword = async (req, res) => {
+    try {
+        await authService.changePassword(req.body);
+        res.json({ status: 'success', message: 'Password berhasil diubah!' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(err.status || 500).json({ status: 'error', message: err.message || 'Gagal mengubah password' });
+    }
+};
+
+module.exports = { register, login, getPlayer, getKingdoms, upgradeSkill, changePassword };

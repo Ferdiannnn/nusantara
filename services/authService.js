@@ -122,4 +122,24 @@ async function upgradeSkill({ player_id, skill_name }) {
     });
 }
 
-module.exports = { register, login, getPlayer, getKingdoms, upgradeSkill };
+async function changePassword({ player_id, old_password, new_password }) {
+    const player = await prisma.player.findUnique({ where: { id: parseInt(player_id) } });
+    if (!player) {
+        const err = new Error('Player tidak ditemukan');
+        err.status = 404;
+        throw err;
+    }
+
+    if (player.password !== hashPassword(old_password)) {
+        const err = new Error('Password lama salah');
+        err.status = 400;
+        throw err;
+    }
+
+    await prisma.player.update({
+        where: { id: player.id },
+        data: { password: hashPassword(new_password) }
+    });
+}
+
+module.exports = { register, login, getPlayer, getKingdoms, upgradeSkill, changePassword };
