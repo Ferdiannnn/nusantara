@@ -8,7 +8,7 @@ require('dotenv').config();
 
 const indexRouter = require('./routes/index');
 const usersRouter = require('./routes/users');
-const apiRouter = require('./routes/api');
+const apiRouter = require('./routes/api/index');
 
 BigInt.prototype.toJSON = function () {
   const num = Number(this);
