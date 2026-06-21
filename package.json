@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
-    "dev": "nodemon --ignore config/ ./bin/www"
+    "dev": "nodemon --ignore config/ ./bin/www",
+    "build": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
