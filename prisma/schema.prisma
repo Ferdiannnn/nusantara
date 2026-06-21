@@ -37,11 +37,17 @@ model Player {
   agi_level       Int       @default(1)
   crit_rate_level Int       @default(1)
   crit_dmg_level  Int       @default(1)
+  eco_level       Int       @default(1)
   level           Int       @default(1)
   exp             Int       @default(0)
   skill_points    Int       @default(0)
   stamina         Int       @default(100)
   last_stamina_regen DateTime @default(now()) @db.Timestamp(0)
+  energy             Int       @default(100)
+  last_energy_regen  DateTime  @default(now()) @db.Timestamp(0)
+  wood               Int       @default(0)
+  iron               Int       @default(0)
+  spices             Int       @default(0)
 
 
   created_at      DateTime  @default(now()) @db.Timestamp(0)
@@ -59,6 +65,8 @@ model Territory {
   name         String    @db.VarChar(100)
   kingdom_id   Int?      // Null if neutral
   troops_count Int       @default(0)
+  resource_type       String?   @db.VarChar(20)
+  resource_expires_at DateTime? @db.Timestamp(0)
   created_at   DateTime  @default(now()) @db.Timestamp(0)
   updated_at   DateTime  @updatedAt @db.Timestamp(0)
 

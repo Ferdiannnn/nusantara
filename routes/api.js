@@ -14,12 +14,37 @@ function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-// Helper untuk regenerasi stamina otomatis (1 stamina per 5 detik, max 100)
+// Helper untuk kalkulasi requirement EXP naik level (semakin tinggi level, semakin tinggi EXP yang dibutuhkan)
+function getLevelRequirement(level) {
+    return Math.floor(100 * Math.pow(level, 1.5));
+}
+
+function getRandomDuration() {
+    const choices = ['1d', '2d', '3d', 'hours'];
+    const choice = choices[Math.floor(Math.random() * choices.length)];
+    const now = new Date();
+    if (choice === '1d') {
+        return new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    } else if (choice === '2d') {
+        return new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+    } else if (choice === '3d') {
+        return new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    } else {
+        const hours = Math.floor(Math.random() * 23) + 1;
+        return new Date(now.getTime() + hours * 60 * 60 * 1000);
+    }
+}
+
+// Helper untuk regenerasi stamina otomatis (1 stamina per interval dinamis, max dinamis)
 async function regenerateStamina(player) {
     if (!player) return null;
-    if (player.stamina >= 100) {
+    const defLevel = player.def_level || 1;
+    const maxStamina = 100 + (defLevel - 1) * 10;
+    const intervalSeconds = 2100 * Math.pow(0.95, defLevel - 1);
+
+    if (player.stamina >= maxStamina) {
         // Update waktu regen terakhir ke sekarang agar tidak berakumulasi jika full lalu berkurang
-        if (new Date() - new Date(player.last_stamina_regen) > 5000) {
+        if (new Date() - new Date(player.last_stamina_regen) > intervalSeconds * 1000) {
             await prisma.player.update({
                 where: { id: player.id },
                 data: { last_stamina_regen: new Date() }
@@ -31,10 +56,10 @@ async function regenerateStamina(player) {
     const lastRegen = new Date(player.last_stamina_regen || now);
     const secondsDiff = Math.floor((now - lastRegen) / 1000);
     
-    if (secondsDiff >= 5) {
-        const regenAmount = Math.floor(secondsDiff / 5);
-        const newStamina = Math.min(100, player.stamina + regenAmount);
-        const remainingMs = (secondsDiff % 5) * 1000;
+    if (secondsDiff >= intervalSeconds) {
+        const regenAmount = Math.floor(secondsDiff / intervalSeconds);
+        const newStamina = Math.min(maxStamina, player.stamina + regenAmount);
+        const remainingMs = (secondsDiff % intervalSeconds) * 1000;
         const newRegenTime = new Date(now.getTime() - remainingMs);
         
         return await prisma.player.update({
@@ -52,6 +77,56 @@ async function regenerateStamina(player) {
         });
     }
     return player;
+}
+
+// Helper untuk regenerasi energi kerja otomatis (1 energi per interval dinamis, max dinamis)
+async function regenerateEnergy(player) {
+    if (!player) return null;
+    const ecoLevel = player.eco_level || 1;
+    const maxEnergy = 100 + (ecoLevel - 1) * 10;
+    const intervalSeconds = 2100 * Math.pow(0.95, ecoLevel - 1);
+
+    if (player.energy >= maxEnergy) {
+        if (new Date() - new Date(player.last_energy_regen) > intervalSeconds * 1000) {
+            await prisma.player.update({
+                where: { id: player.id },
+                data: { last_energy_regen: new Date() }
+            });
+        }
+        return player;
+    }
+    const now = new Date();
+    const lastRegen = new Date(player.last_energy_regen || now);
+    const secondsDiff = Math.floor((now - lastRegen) / 1000);
+    
+    if (secondsDiff >= intervalSeconds) {
+        const regenAmount = Math.floor(secondsDiff / intervalSeconds);
+        const newEnergy = Math.min(maxEnergy, player.energy + regenAmount);
+        const remainingMs = (secondsDiff % intervalSeconds) * 1000;
+        const newRegenTime = new Date(now.getTime() - remainingMs);
+        
+        return await prisma.player.update({
+            where: { id: player.id },
+            data: {
+                energy: newEnergy,
+                last_energy_regen: newRegenTime
+            },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+    }
+    return player;
+}
+
+async function regenerateResources(player) {
+    if (!player) return null;
+    let p = await regenerateStamina(player);
+    p = await regenerateEnergy(p);
+    return p;
 }
 
 
@@ -116,7 +191,7 @@ router.get('/products', async (req,res) => {
 // GAME ENDPOINTS //
 router.get('/game/territories', async (req, res) => {
     try {
-        const territories = await prisma.territory.findMany({
+        let territories = await prisma.territory.findMany({
             include: { 
                 kingdom: true,
                 battles: {
@@ -127,8 +202,41 @@ router.get('/game/territories', async (req, res) => {
                 }
             }
         });
+        
+        const now = new Date();
+        for (let i = 0; i < territories.length; i++) {
+            const t = territories[i];
+            if (!t.resource_expires_at || new Date(t.resource_expires_at) < now) {
+                const hasResource = Math.random() < 0.50;
+                let resourceType = null;
+                if (hasResource) {
+                    const types = ['wood', 'iron', 'spices'];
+                    resourceType = types[Math.floor(Math.random() * types.length)];
+                }
+                const expiresAt = getRandomDuration();
+                
+                const updated = await prisma.territory.update({
+                    where: { id: t.id },
+                    data: {
+                        resource_type: resourceType,
+                        resource_expires_at: expiresAt
+                    },
+                    include: {
+                        kingdom: true,
+                        battles: {
+                            where: { status: 'ONGOING' },
+                            orderBy: { started_at: 'desc' },
+                            take: 1,
+                            include: { attacker_kingdom: true }
+                        }
+                    }
+                });
+                territories[i] = updated;
+            }
+        }
         res.json({ status: 'success', data: territories });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ status: 'error', message: 'Gagal memuat kerajaan' });
     }
 });
@@ -238,7 +346,7 @@ router.post('/game/help_attack', async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
         }
 
-        const playerRefreshed = await regenerateStamina(player);
+        const playerRefreshed = await regenerateResources(player);
 
         let totalAtkBonus = 0;
         let totalDefBonus = 0;
@@ -307,8 +415,8 @@ router.post('/game/help_attack', async (req, res) => {
         let gainedPoints = 0;
         let leveledUp = false;
 
-        while (newExp >= newLevel * 100) {
-            newExp -= newLevel * 100;
+        while (newExp >= getLevelRequirement(newLevel)) {
+            newExp -= getLevelRequirement(newLevel);
             newLevel += 1;
             gainedPoints += 5;
             leveledUp = true;
@@ -414,7 +522,7 @@ router.post('/game/defend_territory', async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
         }
 
-        const playerRefreshed = await regenerateStamina(player);
+        const playerRefreshed = await regenerateResources(player);
 
         let totalAtkBonus = 0;
         let totalDefBonus = 0;
@@ -474,8 +582,8 @@ router.post('/game/defend_territory', async (req, res) => {
         let gainedPoints = 0;
         let leveledUp = false;
 
-        while (newExp >= newLevel * 100) {
-            newExp -= newLevel * 100;
+        while (newExp >= getLevelRequirement(newLevel)) {
+            newExp -= getLevelRequirement(newLevel);
             newLevel += 1;
             gainedPoints += 5;
             leveledUp = true;
@@ -626,7 +734,7 @@ router.get('/game/player/:id', async (req, res) => {
         if (!player) {
             return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
         }
-        const updatedPlayer = await regenerateStamina(player);
+        const updatedPlayer = await regenerateResources(player);
         res.json({ status: 'success', data: updatedPlayer });
     } catch (err) {
         console.error(err.message);
@@ -645,7 +753,7 @@ router.post('/game/upgrade_skill', async (req, res) => {
         }
 
         const skillField = `${skill_name}_level`;
-        const validSkills = ['atk', 'def', 'agi', 'crit_rate', 'crit_dmg'];
+        const validSkills = ['atk', 'def', 'agi', 'crit_rate', 'crit_dmg', 'eco'];
         if (!validSkills.includes(skill_name)) {
             return res.status(400).json({ status: 'error', message: 'Skill tidak valid' });
         }
@@ -712,7 +820,7 @@ router.post('/game/equip_equipment', async (req, res) => {
                 }
             }
         });
-        const updatedPlayer = await regenerateStamina(player);
+        const updatedPlayer = await regenerateResources(player);
 
         res.json({ status: 'success', message: `Berhasil memasang ${equipment.name}`, data: updatedPlayer });
     } catch (err) {
@@ -746,7 +854,7 @@ router.post('/game/unequip_equipment', async (req, res) => {
                 }
             }
         });
-        const updatedPlayer = await regenerateStamina(player);
+        const updatedPlayer = await regenerateResources(player);
 
         res.json({ status: 'success', message: `Berhasil melepas ${equipment.name}`, data: updatedPlayer });
     } catch (err) {
@@ -794,6 +902,53 @@ const LEG_NAMES = {
 };
 
 
+// GET chest rates
+router.get('/game/chest_rates', (req, res) => {
+    try {
+        const ratesPath = path.join(__dirname, '../config/chest_rates.json');
+        let rates = { COMMON: 60, RARE: 25, EPIC: 12, LEGENDARY: 3 };
+        if (fs.existsSync(ratesPath)) {
+            rates = JSON.parse(fs.readFileSync(ratesPath, 'utf8'));
+        }
+        res.json({ status: 'success', data: rates });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal mengambil rate chest' });
+    }
+});
+
+// POST update chest rates
+router.post('/game/chest_rates', (req, res) => {
+    const { COMMON, RARE, EPIC, LEGENDARY } = req.body;
+    try {
+        const commonVal = parseInt(COMMON);
+        const rareVal = parseInt(RARE);
+        const epicVal = parseInt(EPIC);
+        const legendaryVal = parseInt(LEGENDARY);
+
+        if (isNaN(commonVal) || isNaN(rareVal) || isNaN(epicVal) || isNaN(legendaryVal)) {
+            return res.status(400).json({ status: 'error', message: 'Semua nilai rate harus berupa angka' });
+        }
+
+        if (commonVal < 0 || rareVal < 0 || epicVal < 0 || legendaryVal < 0) {
+            return res.status(400).json({ status: 'error', message: 'Nilai rate tidak boleh negatif' });
+        }
+
+        if (commonVal + rareVal + epicVal + legendaryVal !== 100) {
+            return res.status(400).json({ status: 'error', message: 'Total persentase rate harus tepat 100%' });
+        }
+
+        const ratesPath = path.join(__dirname, '../config/chest_rates.json');
+        const newRates = { COMMON: commonVal, RARE: rareVal, EPIC: epicVal, LEGENDARY: legendaryVal };
+        fs.writeFileSync(ratesPath, JSON.stringify(newRates, null, 2), 'utf8');
+
+        res.json({ status: 'success', message: 'Rate chest berhasil diperbarui!', data: newRates });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal memperbarui rate chest' });
+    }
+});
+
 router.post('/game/open_chest', async (req, res) => {
     const { player_id } = req.body;
     try {
@@ -809,16 +964,27 @@ router.post('/game/open_chest', async (req, res) => {
             return res.status(400).json({ status: 'error', message: `Gold tidak cukup! Chest seharga ${cost} gold.` });
         }
 
+        // Load rates from configuration
+        let rates = { COMMON: 60, RARE: 25, EPIC: 12, LEGENDARY: 3 };
+        try {
+            const ratesPath = path.join(__dirname, '../config/chest_rates.json');
+            if (fs.existsSync(ratesPath)) {
+                rates = JSON.parse(fs.readFileSync(ratesPath, 'utf8'));
+            }
+        } catch (e) {
+            console.error("Error reading chest rates", e);
+        }
+
         const rand = Math.random() * 100;
         let rarity = 'COMMON';
         let sellPrice = 10;
-        if (rand < 3) {
+        if (rand < rates.LEGENDARY) {
             rarity = 'LEGENDARY';
             sellPrice = 120;
-        } else if (rand < 15) {
+        } else if (rand < rates.LEGENDARY + rates.EPIC) {
             rarity = 'EPIC';
             sellPrice = 55;
-        } else if (rand < 40) {
+        } else if (rand < rates.LEGENDARY + rates.EPIC + rates.RARE) {
             rarity = 'RARE';
             sellPrice = 25;
         }
@@ -909,6 +1075,270 @@ router.post('/game/open_chest', async (req, res) => {
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ status: 'error', message: 'Gagal membuka chest' });
+    }
+});
+
+// POST Harvest resources
+router.post('/game/harvest', async (req, res) => {
+    const { player_id, territory_id } = req.body;
+    try {
+        const pId = parseInt(player_id);
+        const tId = parseInt(territory_id);
+
+        const player = await prisma.player.findUnique({
+            where: { id: pId },
+            include: { equipments: true }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        let territory = await prisma.territory.findUnique({
+            where: { id: tId }
+        });
+        if (!territory) {
+            return res.status(404).json({ status: 'error', message: 'Wilayah tidak ditemukan' });
+        }
+
+        const now = new Date();
+        if (!territory.resource_expires_at || new Date(territory.resource_expires_at) < now) {
+            const hasResource = Math.random() < 0.50;
+            let resourceType = null;
+            if (hasResource) {
+                const types = ['wood', 'iron', 'spices'];
+                resourceType = types[Math.floor(Math.random() * types.length)];
+            }
+            const expiresAt = getRandomDuration();
+            territory = await prisma.territory.update({
+                where: { id: tId },
+                data: {
+                    resource_type: resourceType,
+                    resource_expires_at: expiresAt
+                }
+            });
+        }
+
+        if (!territory.resource_type) {
+            return res.status(400).json({ status: 'error', message: 'Tidak ada sumber daya alam aktif di wilayah ini saat ini!' });
+        }
+
+        if (territory.kingdom_id !== player.kingdom_id) {
+            return res.status(400).json({ status: 'error', message: 'Anda hanya dapat memanen di wilayah milik kerajaan Anda sendiri!' });
+        }
+
+        // Regenerate resources
+        const playerRefreshed = await regenerateResources(player);
+
+        if (playerRefreshed.energy < 10) {
+            return res.status(400).json({ status: 'error', message: 'Energi Kerja Anda tidak mencukupi (Butuh 10 Energi)!' });
+        }
+
+        const resourceType = territory.resource_type;
+        let resourceLabel = 'Besi ⚙️';
+        if (resourceType === 'spices') {
+            resourceLabel = 'Rempah-rempah 🌶️';
+        } else if (resourceType === 'wood') {
+            resourceLabel = 'Kayu 🪵';
+        }
+
+        const count = Math.floor(Math.random() * 5) + 3; // 3 to 7 resources
+        const gainedExp = 5;
+        const goldGain = 2;
+
+        let newExp = playerRefreshed.exp + gainedExp;
+        let newLevel = playerRefreshed.level;
+        let gainedPoints = 0;
+        let leveledUp = false;
+
+        while (newExp >= getLevelRequirement(newLevel)) {
+            newExp -= getLevelRequirement(newLevel);
+            newLevel += 1;
+            gainedPoints += 5;
+            leveledUp = true;
+        }
+
+        const updatedPlayer = await prisma.player.update({
+            where: { id: playerRefreshed.id },
+            data: {
+                energy: playerRefreshed.energy - 10,
+                last_energy_regen: new Date(),
+                gold: playerRefreshed.gold + goldGain,
+                level: newLevel,
+                exp: newExp,
+                skill_points: playerRefreshed.skill_points + gainedPoints,
+                [resourceType]: playerRefreshed[resourceType] + count
+            },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+
+        res.json({
+            status: 'success',
+            message: `Berhasil memanen ${count} unit ${resourceLabel}! (+2 Gold, +5 EXP)`,
+            data: {
+                player: updatedPlayer,
+                harvested: {
+                    type: resourceType,
+                    label: resourceLabel,
+                    count: count
+                },
+                leveledUp: leveledUp
+            }
+        });
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal melakukan panen sumber daya' });
+    }
+});
+
+// POST Craft equipment
+router.post('/game/craft', async (req, res) => {
+    const { player_id, recipe_key } = req.body;
+    try {
+        const pId = parseInt(player_id);
+
+        const player = await prisma.player.findUnique({
+            where: { id: pId }
+        });
+        if (!player) {
+            return res.status(404).json({ status: 'error', message: 'Player tidak ditemukan' });
+        }
+
+        // Recipes definition
+        const recipes = {
+            knight_sword: {
+                name: 'Pedang Ksatria',
+                type: 'WEAPON',
+                rarity: 'RARE',
+                atk_bonus: 6,
+                def_bonus: 0,
+                agi_bonus: 0,
+                crit_rate_bonus: 0,
+                cost_gold: 150,
+                cost_wood: 5,
+                cost_iron: 15,
+                cost_spices: 0,
+                sell_price: 60
+            },
+            iron_plate: {
+                name: 'Zirah Besi Rakyat',
+                type: 'ARMOR',
+                rarity: 'RARE',
+                atk_bonus: 0,
+                def_bonus: 4,
+                agi_bonus: 0,
+                crit_rate_bonus: 0,
+                cost_gold: 200,
+                cost_wood: 0,
+                cost_iron: 20,
+                cost_spices: 0,
+                sell_price: 80
+            },
+            wanderer_boots: {
+                name: 'Sepatu Bot Pengembara',
+                type: 'BOOTS',
+                rarity: 'EPIC',
+                atk_bonus: 0,
+                def_bonus: 0,
+                agi_bonus: 8,
+                crit_rate_bonus: 0,
+                cost_gold: 400,
+                cost_wood: 10,
+                cost_iron: 0,
+                cost_spices: 15,
+                sell_price: 160
+            },
+            hayam_crown: {
+                name: 'Mahkota Hayam Wuruk',
+                type: 'HELMET',
+                rarity: 'LEGENDARY',
+                atk_bonus: 0,
+                def_bonus: 9,
+                agi_bonus: 0,
+                crit_rate_bonus: 0,
+                cost_gold: 1000,
+                cost_wood: 0,
+                cost_iron: 40,
+                cost_spices: 30,
+                sell_price: 450
+            }
+        };
+
+        const recipe = recipes[recipe_key];
+        if (!recipe) {
+            return res.status(400).json({ status: 'error', message: 'Resep tidak valid' });
+        }
+
+        if (player.gold < recipe.cost_gold) {
+            return res.status(400).json({ status: 'error', message: 'Koin emas Anda tidak mencukupi!' });
+        }
+        if (player.wood < recipe.cost_wood) {
+            return res.status(400).json({ status: 'error', message: 'Bahan Kayu Anda tidak mencukupi!' });
+        }
+        if (player.iron < recipe.cost_iron) {
+            return res.status(400).json({ status: 'error', message: 'Bahan Besi Anda tidak mencukupi!' });
+        }
+        if (player.spices < recipe.cost_spices) {
+            return res.status(400).json({ status: 'error', message: 'Bahan Rempah Anda tidak mencukupi!' });
+        }
+
+        // Deduct materials and create equipment in transaction
+        const [updatedPlayer, newEquipment] = await prisma.$transaction([
+            prisma.player.update({
+                where: { id: pId },
+                data: {
+                    gold: player.gold - recipe.cost_gold,
+                    wood: player.wood - recipe.cost_wood,
+                    iron: player.iron - recipe.cost_iron,
+                    spices: player.spices - recipe.cost_spices
+                }
+            }),
+            prisma.equipment.create({
+                data: {
+                    player_id: pId,
+                    name: recipe.name,
+                    type: recipe.type,
+                    rarity: recipe.rarity,
+                    atk_bonus: recipe.atk_bonus,
+                    def_bonus: recipe.def_bonus,
+                    agi_bonus: recipe.agi_bonus,
+                    crit_rate_bonus: recipe.crit_rate_bonus,
+                    durability: 100,
+                    max_durability: 100,
+                    sell_price: recipe.sell_price,
+                    equipped: false,
+                    on_market: false
+                }
+            })
+        ]);
+
+        const finalPlayer = await prisma.player.findUnique({
+            where: { id: pId },
+            include: {
+                kingdom: true,
+                equipments: {
+                    orderBy: { created_at: 'desc' }
+                }
+            }
+        });
+
+        res.json({
+            status: 'success',
+            message: `Berhasil manufaktur ${recipe.name} (${recipe.rarity})!`,
+            data: {
+                player: finalPlayer,
+                equipment: newEquipment
+            }
+        });
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ status: 'error', message: 'Gagal membuat peralatan' });
     }
 });
 
