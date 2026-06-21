@@ -9,6 +9,8 @@ require('dotenv').config();
 const indexRouter = require('./routes/index');
 const usersRouter = require('./routes/users');
 const apiRouter = require('./routes/api/index');
+// Swagger setup
+const swaggerDocs = require('./config/swagger');
 
 BigInt.prototype.toJSON = function () {
   const num = Number(this);
@@ -30,6 +32,10 @@ app.use('/maps', express.static(path.join(__dirname, 'maps')));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/api', apiRouter); 
+// API Documentation JSON route for Next.js to consume
+app.get('/api-docs.json', (req, res) => {
+  res.json(swaggerDocs);
+});
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
   next(createError(404));
