@@ -15,12 +15,14 @@ const battleRoutes    = require('./battle');
 const inventoryRoutes = require('./inventory');
 const marketRoutes    = require('./market');
 const mapRoutes       = require('./map');
+const kingdomRoutes   = require('./kingdom');
 
 // Mount sub-routers
 router.use('/game', authRoutes);
 router.use('/game', battleRoutes);
 router.use('/game', inventoryRoutes);
 router.use('/game/market', marketRoutes);
+router.use('/game/kingdoms', kingdomRoutes);
 router.use('/game', mapRoutes);
 
 // ─── Legacy / Generic endpoints ─────────────────────────────────────────────
