@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const compression = require('compression');
+const cors = require('cors');
 require('dotenv').config();
 
 const indexRouter = require('./routes/index');
@@ -18,6 +19,8 @@ BigInt.prototype.toJSON = function () {
 };
 
 var app = express();
+
+app.use(cors()); // Allow requests from other origins (e.g., Next.js frontend)
 
 // views removed
 
