@@ -35,7 +35,7 @@ async function regenerateStamina(player) {
     if (!player) return null;
     const defLevel = player.def_level || 1;
     const maxStamina = 100 + (defLevel - 1) * 10;
-    const intervalSeconds = 2100 * Math.pow(0.95, defLevel - 1);
+    const intervalSeconds = 600 * Math.pow(0.95, defLevel - 1);
 
     if (player.stamina >= maxStamina) {
         if (new Date() - new Date(player.last_stamina_regen) > intervalSeconds * 1000) {
@@ -77,7 +77,7 @@ async function regenerateEnergy(player) {
     if (!player) return null;
     const ecoLevel = player.eco_level || 1;
     const maxEnergy = 100 + (ecoLevel - 1) * 10;
-    const intervalSeconds = 2100 * Math.pow(0.95, ecoLevel - 1);
+    const intervalSeconds = 600 * Math.pow(0.95, ecoLevel - 1);
 
     if (player.energy >= maxEnergy) {
         if (new Date() - new Date(player.last_energy_regen) > intervalSeconds * 1000) {
