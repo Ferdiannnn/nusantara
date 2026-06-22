@@ -84,12 +84,49 @@ model Battle {
   status              String    @db.VarChar(20) // 'ONGOING', 'ATTACKER_WON', 'DEFENDER_WON'
   attacker_troops     Int       @default(0)
   defender_troops     Int       @default(0)
+  // Round tracking (best of 3)
+  attacker_rounds_won Int       @default(0)
+  defender_rounds_won Int       @default(0)
   started_at          DateTime  @default(now()) @db.Timestamp(0)
   ended_at            DateTime? @db.Timestamp(0)
 
-  territory           Territory @relation(fields: [territory_id], references: [id])
-  attacker_kingdom    Kingdom   @relation("AttackerKingdom", fields: [attacker_kingdom_id], references: [id])
-  defender_kingdom    Kingdom?  @relation("DefenderKingdom", fields: [defender_kingdom_id], references: [id])
+  territory           Territory   @relation(fields: [territory_id], references: [id])
+  attacker_kingdom    Kingdom     @relation("AttackerKingdom", fields: [attacker_kingdom_id], references: [id])
+  defender_kingdom    Kingdom?    @relation("DefenderKingdom", fields: [defender_kingdom_id], references: [id])
+  rounds              BattleRound[]
+}
+
+// One round in a battle (max 3 rounds, 500 pts target per round)
+model BattleRound {
+  id              BigInt    @id @default(autoincrement())
+  battle_id       BigInt
+  round_number    Int       // 1, 2, or 3
+  status          String    @db.VarChar(20) // 'ONGOING', 'ATTACKER_WON', 'DEFENDER_WON', 'DRAW'
+  attacker_points Int       @default(0)
+  defender_points Int       @default(0)
+  // Damage accumulated since the last 2-minute tick (reset on each tick)
+  attacker_dmg_since_tick Int @default(0)
+  defender_dmg_since_tick Int @default(0)
+  last_tick_at    DateTime  @default(now()) @db.Timestamp(0)
+  started_at      DateTime  @default(now()) @db.Timestamp(0)
+  ended_at        DateTime? @db.Timestamp(0)
+
+  battle          Battle      @relation(fields: [battle_id], references: [id])
+  ticks           BattleTick[]
+}
+
+// Log of each 2-minute damage tick within a round
+model BattleTick {
+  id            BigInt    @id @default(autoincrement())
+  round_id      BigInt
+  tick_number   Int
+  attacker_dmg  Int       @default(0)
+  defender_dmg  Int       @default(0)
+  attacker_pts  Int       @default(0)  // Points awarded to attacker this tick
+  defender_pts  Int       @default(0)  // Points awarded to defender this tick
+  created_at    DateTime  @default(now()) @db.Timestamp(0)
+
+  round         BattleRound @relation(fields: [round_id], references: [id])
 }
 
 model PlayerTroopMovement {
